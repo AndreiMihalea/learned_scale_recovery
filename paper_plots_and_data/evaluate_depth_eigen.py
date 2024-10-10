@@ -55,10 +55,10 @@ if __name__=='__main__':
     MIN_DEPTH = 1e-3
     MAX_DEPTH = 80
 
-    path_to_ws = '/home/brandonwagstaff/learned_scale_recovery/' ##update this
-    path_to_dset_downsized = '/media/datasets/KITTI-eigen-split/'
+    path_to_ws = '/home/nemodrive/workspace/andreim/learned_scale_recovery/' ##update this
+    path_to_dset_downsized = '/mnt/datadisk/andreim/kitti_eigen_split/'
 
-    dir = path_to_ws + 'results/final_models/eigen-depth-eval-scaled-202102141219'
+    dir = path_to_ws + 'results/final_models/eigen-depth-eval-scaled-202102141219/'
     pretrained_plane_dir = 'results/plane-model-eigen-202101201842'
     
     cam_height=1.70

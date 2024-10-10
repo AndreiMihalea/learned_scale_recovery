@@ -10,8 +10,8 @@ from liegroups import SE3
 import pickle
 
 parser = argparse.ArgumentParser(description='')
-parser.add_argument("--source_dir", type=str, default='/media/HDD1/datasets/KITTI/raw/') #path to full raw dataset
-parser.add_argument("--target_dir", type=str, default='/media/datasets/KITTI-eigen-split')
+parser.add_argument("--source_dir", type=str, default='/mnt/datadisk/andreim/kitti_raw/') #path to full raw dataset
+parser.add_argument("--target_dir", type=str, default='/mnt/datadisk/andreim/kitti_eigen_split')
 args = parser.parse_args()
 
 
@@ -34,7 +34,7 @@ for resolution in ['med_res']:
         zoom_y = img_height/orig_img_height
         zoom_x = img_width/orig_img_width
     #    img = np.array(Image.fromarray(img).crop([425, 65, 801, 305]))
-        img = np.array(Image.fromarray(img).resize((img_width, img_height), resample = Image.ANTIALIAS))
+        img = np.array(Image.fromarray(img).resize((img_width, img_height), resample = Image.LANCZOS))
         return img, zoom_x, zoom_y, orig_img_width, orig_img_height
     
         ###Iterate through all specified KITTI sequences and extract raw data, and trajectories

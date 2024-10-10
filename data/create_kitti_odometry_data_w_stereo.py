@@ -13,8 +13,8 @@ import argparse
 from liegroups import SE3
 
 parser = argparse.ArgumentParser(description='')
-parser.add_argument("--source_dir", type=str, default='/media/datasets/KITTI-odometry/')
-parser.add_argument("--target_dir", type=str, default='/media/datasets/KITTI-odometry-downsized-stereo')
+parser.add_argument("--source_dir", type=str, default='/mnt/storage/workspace/andreim/kitti/data_odometry_color')
+parser.add_argument("--target_dir", type=str, default='/media/datasets/kitti_odometry_downsized')
 parser.add_argument("--remove_static", action='store_true', default=False)
 args = parser.parse_args()
 
@@ -24,16 +24,17 @@ resolutions = {'low_res': {'height':128, 'width': 448}, 'med_res': {'height':192
 for resolution in ['med_res']:
     target_dir = '{}/{}/'.format(args.target_dir,resolution)
     os.makedirs(target_dir, exist_ok=True)
-    seq_names= {'00': '2011_10_03_drive_0027_sync',
-        '01': '2011_10_03_drive_0042_sync',
-        '02': '2011_10_03_drive_0034_sync',
-        '04': '2011_09_30_drive_0016_sync',
-        '05': '2011_09_30_drive_0018_sync',
-        '06': '2011_09_30_drive_0020_sync',
-        '07': '2011_09_30_drive_0027_sync',
-        '08': '2011_09_30_drive_0028_sync',
-        '09': '2011_09_30_drive_0033_sync',
-        '10': '2011_09_30_drive_0034_sync',
+    seq_names= {'00': '00',
+        '01': '01',
+        '02': '02',
+        '03': '03',
+        '04': '04',
+        '05': '05',
+        '06': '06',
+        '07': '07',
+        '08': '08',
+        '09': '09',
+        '10': '10',
         '11': '11',
         '12': '12',
         '13': '13',
@@ -47,7 +48,7 @@ for resolution in ['med_res']:
         '21': '21',
     }
     
-    sequences = ['00', '01', '02', '04', '05', '06', '07', '08', '09', '10', '11', '12', '13', '14', '15', '16', '17', '18', '19' , '20', '21']
+    sequences = ['00', '01', '02', '03', '04', '05', '06', '07', '08', '09', '10', '11', '12', '13', '14', '15', '16', '17', '18', '19' , '20', '21']
 
     args.height =  resolutions[resolution]['height']
     args.width =  resolutions[resolution]['width']

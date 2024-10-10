@@ -98,7 +98,6 @@ config={
     }
 for k in args.__dict__:
     config[k] = args.__dict__[k]
-print(config)
 
 args.data_dir = '{}/{}_res'.format(args.data_dir, config['img_resolution'])
 config['data_dir'] = '{}/{}_res'.format(config['data_dir'], config['img_resolution'])
@@ -111,13 +110,13 @@ if args.data_format == 'odometry':
 
     dsets = {x: KittiLoaderPytorch(config, [args.train_seq, args.val_seq, args.test_seq], mode=x, transform_img=get_data_transforms(config)[x], \
                                 augment=config['augment_motion']) for x in ['train', 'val']}
-    dset_loaders = {x: torch.utils.data.DataLoader(dsets[x], batch_size=config['minibatch'], shuffle=True, num_workers=8) for x in ['train', 'val']}
+    dset_loaders = {x: torch.utils.data.DataLoader(dsets[x], batch_size=config['minibatch'], shuffle=True, num_workers=0) for x in ['train', 'val']}
 
     val_dset = KittiLoaderPytorch(config, [args.train_seq, args.val_seq, args.test_seq], mode='val', transform_img=get_data_transforms(config)['val'])
-    val_dset_loaders = torch.utils.data.DataLoader(val_dset, batch_size=config['minibatch'], shuffle=False, num_workers=8)
+    val_dset_loaders = torch.utils.data.DataLoader(val_dset, batch_size=config['minibatch'], shuffle=False, num_workers=0)
 
     test_dset = KittiLoaderPytorch(config, [args.train_seq, args.val_seq, args.test_seq], mode='test', transform_img=get_data_transforms(config)['test'])
-    test_dset_loaders = torch.utils.data.DataLoader(test_dset, batch_size=config['minibatch'], shuffle=False, num_workers=8)
+    test_dset_loaders = torch.utils.data.DataLoader(test_dset, batch_size=config['minibatch'], shuffle=False, num_workers=0)
 
     eval_dsets = {'val': val_dset_loaders, 'test':test_dset_loaders}
 
@@ -125,12 +124,13 @@ if args.data_format == 'eigen':
     from data.kitti_loader_eigen import KittiLoaderPytorch
     dsets = {x: KittiLoaderPytorch(config, None, mode=x, transform_img=get_data_transforms(config)[x], \
                                 augment=config['augment_motion'], skip=config['skip']) for x in ['train', 'val']}
-    dset_loaders = {x: torch.utils.data.DataLoader(dsets[x], batch_size=config['minibatch'], shuffle=True, num_workers=8) for x in ['train', 'val']}
+    dset_loaders = {x: torch.utils.data.DataLoader(dsets[x], batch_size=config['minibatch'], shuffle=True, num_workers=0) for x in ['train', 'val']}
 
     val_dset = KittiLoaderPytorch(config, None, mode='val', transform_img=get_data_transforms(config)['val'])
-    val_dset_loaders = torch.utils.data.DataLoader(val_dset, batch_size=config['minibatch'], shuffle=False, num_workers=8)
+    val_dset_loaders = torch.utils.data.DataLoader(val_dset, batch_size=config['minibatch'], shuffle=False, num_workers=0)
 
-    eval_dsets = {'val': val_dset_loaders}    
+    eval_dsets = {'val': val_dset_loaders}
+
 
 def main():
     results = {}
@@ -209,6 +209,8 @@ def main():
             for key, value in train_losses.items():
                 train_writer.add_scalar('{}'.format(key), value, epoch+1)
                 val_writer.add_scalar('{}'.format(key), val_losses[key], epoch+1)
+            # print(trainer.loss.scale_factor_list[epoch])
+            train_writer.add_scalar('scale_factor', np.median(trainer.loss.scale_factor_list[epoch]), epoch+1)
 
         for key, dset in eval_dsets.items():
             print("{} Set, Epoch {}".format(key, epoch))

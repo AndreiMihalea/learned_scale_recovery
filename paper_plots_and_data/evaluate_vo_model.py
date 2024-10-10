@@ -27,7 +27,7 @@ ransac_rescaling = True
 # seq_list = ['00_02', '02_02', '06_02', '07_02', '08_02', '05_02', '09_02', '10_02']
 seq_list =['09_02', '10_02']
 
-dir = path_to_ws + 'results/final_models/vo-kitti-scaled-202102182020'
+dir = path_to_ws + 'results/202410012104'
 plane_dir = 'results/plane-model-kitti-202101072240'
 results_dir = dir + '/results/scale/'
 os.makedirs(results_dir, exist_ok=True)

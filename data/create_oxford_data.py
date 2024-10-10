@@ -13,14 +13,14 @@ import re
 from colour_demosaicing import demosaicing_CFA_Bayer_bilinear as demosaic
 
 parser = argparse.ArgumentParser(description='')
-parser.add_argument("--source_dir", type=str, default='/media/HDD1/datasets/oxford-robotcar')
-parser.add_argument("--target_dir", type=str, default='/media/datasets/oxford-robotcar-downsized')
+parser.add_argument("--source_dir", type=str, default='/mnt/datadisk/andreim/oxford_robotcar')
+parser.add_argument("--target_dir", type=str, default='/mnt/datadisk/andreim/oxford_robotcar_downsized')
 parser.add_argument("--camera_type", type=str, default='stereo')
 parser.add_argument("--remove_static", action='store_true', default=True)
 args = parser.parse_args()
 
 args.models_dir = '{}/camera_models'.format(args.source_dir)
-args.source_dir = '{}/data'.format(args.source_dir)
+args.source_dir = '{}/'.format(args.source_dir)
 
 sequences = ['2014-11-18-13-20-12', '2015-07-08-13-37-17', '2015-07-10-10-01-59', '2015-08-12-15-04-18']
 crop = [200,-165, 0, 1280] #top, bottom, left, right
@@ -55,7 +55,7 @@ for resolution in ['med_res']:
         orig_img_width = img.shape[1]
         zoom_y = img_height/orig_img_height
         zoom_x = img_width/orig_img_width
-        img = np.array(Image.fromarray(img).resize((img_width, img_height), resample = Image.ANTIALIAS))
+        img = np.array(Image.fromarray(img).resize((img_width, img_height), resample = Image.LANCZOS))
         return img, zoom_x, zoom_y, orig_img_width, orig_img_height
     
         ###Iterate through all specified KITTI sequences and extract raw data, and trajectories
@@ -99,7 +99,7 @@ for resolution in ['med_res']:
         seq_info['sparse_gt_pose'] = vo_data['poses_gt'].transpose(2,0,1) ### store the ground truth pose
         seq_info['sparse_vo'] = est_traj ### store the VO pose estimates to extract 
 
-            ###Only keep keyframes        
+            ###Only keep keyframes
         seq_info['intrinsics_left'] = seq_info['intrinsics_left'][keyframe_idx]
         seq_info['intrinsics_right'] = seq_info['intrinsics_right'][keyframe_idx]
         seq_info['cam_02'] = seq_info['cam_02'][keyframe_idx]

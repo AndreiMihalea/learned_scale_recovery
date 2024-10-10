@@ -41,8 +41,7 @@ class KittiLoaderPytorch(torch.utils.data.Dataset):
             ###Iterate through all specified KITTI sequences and extract raw data, and trajectories
 
         data_filename = '{}/eigen_info_{}'.format(basedir, mode)
-            
-        print(data_filename)
+
         with open(data_filename + '.pkl', 'rb') as f:
             self.data = pickle.load(f)
             

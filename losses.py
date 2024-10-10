@@ -2,6 +2,8 @@ import torch
 import torch.nn as nn
 import numpy as np
 import glob
+
+from utils.inverse_warp_utils import get_scale_factor
 from utils.learning_helpers import disp_to_depth, save_obj
 from utils.geometry_helpers import euler2mat
 from models.stn import *
@@ -152,9 +154,12 @@ class Compute_Loss(nn.modules.Module):
 
             '''Ground Plane Loss (experimental)'''  
             if self.config['l_scale_recovery'] and epoch > 0:
-                scale_factor, plane_loss = self.plane_loss(plane_est, d, intrinsics) 
-                self.scale_factor_list[epoch].append(scale_factor.mean().item())
-                losses['l_scale_depth'] += self.l_scale_depth_weight*plane_loss
+                # scale_factor, plane_loss = self.plane_loss(plane_est, d, intrinsics)
+                # self.scale_factor_list[epoch].append(scale_factor.mean().item())
+                # losses['l_scale_depth'] += self.l_scale_depth_weight*plane_loss
+                scale_factor = get_scale_factor(d, intrinsics)
+                scaled_target_depth = (scale_factor.reshape((-1, 1, 1, 1)) * d).detach()
+                losses['l_scale_depth'] += self.l_scale_depth_weight * torch.abs((d - scaled_target_depth) / scaled_target_depth).mean()
 
                 for pose in poses:
                     target_pose = (pose[:,0:3].clone()*( scale_factor.reshape((-1,1)).expand_as(pose[:,0:3])) ).detach()

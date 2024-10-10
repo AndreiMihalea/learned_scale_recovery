@@ -126,7 +126,7 @@ def data_and_model_loader(config, pretrained_depth_path, pretrained_pose_path, s
     else:
         seq = [seq]
     device = torch.device("cuda") if torch.cuda.is_available() else torch.device("cpu")
-    test_dset = KittiLoaderPytorch(config, [seq, seq, seq], mode='test', transform_img=get_data_transforms(config)['test'])
+    test_dset = KittiLoaderPytorch(config, [seq, seq, seq], mode='eigen', transform_img=get_data_transforms(config)['test'])
     test_dset_loaders = torch.utils.data.DataLoader(test_dset, batch_size=config['minibatch'], shuffle=False, num_workers=6)
     eval_dsets = {'test': test_dset_loaders}
     

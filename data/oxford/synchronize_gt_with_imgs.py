@@ -17,14 +17,14 @@ This script processes ground truth poses for the oxford robotcar dataset
 RTK ground truth must be synchronized with the image timestamps
 
 '''
-data_dir = '/media/HDD1/datasets/oxford-robotcar' ## enter path to robotcar folders here
+data_dir = '/mnt/datadisk/andreim/oxford_robotcar' ## enter path to robotcar folders here
 seq_names = ['2014-11-18-13-20-12', '2015-07-08-13-37-17', '2015-07-10-10-01-59', '2015-08-12-15-04-18']
 output_dir = 'stereo_vo_traj'
 
 for seq in seq_names:
-    seq_dir = '{}/data/{}'.format(data_dir, seq)
+    seq_dir = '{}/{}'.format(data_dir, seq)
     data = {}
-    stereo_img_ts_file = '{}/data/{}/stereo.timestamps'.format(data_dir, seq)
+    stereo_img_ts_file = '{}/{}/stereo.timestamps'.format(data_dir, seq)
     stereo_img_ts_file = open(stereo_img_ts_file)
     stereo_img_ts = []
     img_seq_num = [] #split the data into the predefined segments
@@ -37,7 +37,7 @@ for seq in seq_names:
     img_seq_num = np.array(img_seq_num)
     # stereo_img_ts = np.array(stereo_img_ts)/(10.**6)
     gt_dir = '{}/rtk/{}'.format(data_dir,seq)
-    gt_data = pd.read_csv('{}/rtk.csv'.format(gt_dir), mangle_dupe_cols=True)
+    gt_data = pd.read_csv('{}/rtk.csv'.format(gt_dir))
     gt_x = gt_data['easting'] - gt_data['easting'][0]
     gt_y = gt_data['northing'] - gt_data['northing'][0]
     gt_z = gt_data['down'] - gt_data['down'][0]
@@ -45,15 +45,15 @@ for seq in seq_names:
     gt_pitch = gt_data['pitch']
     gt_yaw = gt_data['yaw']
     gt_ts = np.array(gt_data['timestamp'])#/(10.**6)
-    
-    vo_data = pd.read_csv('{}/{}'.format(seq_dir, 'vo/vo.csv'), mangle_dupe_cols=True)
+
+    vo_data = pd.read_csv('{}/{}'.format(seq_dir, 'vo/vo.csv'))
     vo_ts = vo_data['source_timestamp']
 
     rtk_filename = gt_dir+'/rtk.csv'
     
     first_idx = np.where(stereo_img_ts > gt_ts[0])[0][0] + 1
     last_idx = np.where(stereo_img_ts > gt_ts[-1])[0]
-    if last_idx != []:
+    if len(last_idx) != 0:
         last_idx = last_idx[0] - 1
     else:
         last_idx = len(gt_ts)-1

@@ -100,7 +100,7 @@ def generate_depth_map(calib_dir, velo_filename, cam=2, vel_depth=False):
 
     # project to image
     depth = np.zeros((im_shape[:2]))
-    depth[velo_pts_im[:, 1].astype(np.int), velo_pts_im[:, 0].astype(np.int)] = velo_pts_im[:, 2]
+    depth[velo_pts_im[:, 1].astype(np.int32), velo_pts_im[:, 0].astype(np.int32)] = velo_pts_im[:, 2]
 
     # find the duplicate points and choose the closest depth
     inds = sub2ind(depth.shape, velo_pts_im[:, 1], velo_pts_im[:, 0])
@@ -121,12 +121,12 @@ def export_gt_depths_kitti():
 
     parser.add_argument('--data_path',
                         type=str,
-                        default="/media/HDD1/datasets/KITTI/data_depth_annotated/combined",
+                        default="/mnt/datadisk/andreim/kitti_raw",
                         help='path to the root of the KITTI data')
     parser.add_argument('--split',
                         type=str,
                         help='which split to export gt from',
-                        default="eigen_benchmark",
+                        default="eigen",
                         choices=["eigen", "eigen_benchmark"])
     opt = parser.parse_args()
 
