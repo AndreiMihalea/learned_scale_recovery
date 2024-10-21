@@ -58,7 +58,7 @@ if __name__=='__main__':
     path_to_ws = '/home/nemodrive/workspace/andreim/learned_scale_recovery/' ##update this
     path_to_dset_downsized = '/mnt/datadisk/andreim/kitti_eigen_split/'
 
-    dir = path_to_ws + 'results/final_models/eigen-depth-eval-scaled-202102141219/'
+    dir = path_to_ws + 'results/202410171911/'
     pretrained_plane_dir = 'results/plane-model-eigen-202101201842'
     
     cam_height=1.70
@@ -77,6 +77,7 @@ if __name__=='__main__':
     config['data_dir'] = path_to_dset_downsized+config['img_resolution'] + '_res/' #
     config['minibatch'] = 6
     config['load_pretrained'] = True
+    config['data_format'] = 'eigen'
 
     _, models, device = data_and_model_loader(config, pretrained_depth_path, pretrained_pose_path, seq=None)
     depth_model, pose_model = models[0], models[1]

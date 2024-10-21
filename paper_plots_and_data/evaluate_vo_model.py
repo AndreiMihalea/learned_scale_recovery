@@ -17,8 +17,8 @@ import os
 from validate import compute_trajectory as tt
 import glob
 
-path_to_ws = '/home/brandonwagstaff/learned_scale_recovery/' ##update this
-path_to_dset_downsized = '/media/datasets/KITTI-odometry-downsized-stereo/'
+path_to_ws = '/home/nemodrive/workspace/andreim/learned_scale_recovery/' ##update this
+path_to_dset_downsized = '/mnt/datadisk/andreim/kitti/kitti_odometry_downsized/'
 
 load_from_mat = False #Make True to load paper results rather than recomputing
 plane_rescaling = True
@@ -27,8 +27,8 @@ ransac_rescaling = True
 # seq_list = ['00_02', '02_02', '06_02', '07_02', '08_02', '05_02', '09_02', '10_02']
 seq_list =['09_02', '10_02']
 
-dir = path_to_ws + 'results/202410012104'
-plane_dir = 'results/plane-model-kitti-202101072240'
+dir = path_to_ws + 'results/202410180206'
+plane_dir = 'results/plane-model-eigen-202101201842'
 results_dir = dir + '/results/scale/'
 os.makedirs(results_dir, exist_ok=True)
 logger = validate.ResultsLogger('{}/metrics.csv'.format(results_dir))

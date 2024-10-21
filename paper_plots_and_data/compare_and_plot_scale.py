@@ -12,16 +12,16 @@ import csv
 import matplotlib.pyplot as plt
 import matplotlib
 # Removes the XWindows backend (useful for producing plots via tmux without -X)
-matplotlib.use('Agg', warn=False)
+matplotlib.use('Agg')
 
-path_to_ws = '/home/brandonwagstaff/learned_scale_recovery/'
-path_to_dset_downsized = '/media/datasets/KITTI-odometry-downsized-stereo/'
+path_to_ws = '/home/nemodrive/workspace/andreim/learned_scale_recovery/'
+path_to_dset_downsized = '/mnt/datadisk/andreim/kitti/kitti_odometry_downsized/'
 # seq_list = ['00_02', '02_02', '06_02', '07_02', '08_02', '05_02', '09_02', '10_02'] 
 seq_list = ['05_02', '09_02', '10_02'] 
 method_list = ['scaled', 'unscaled']
 
-dir_list = [path_to_ws+'results/final_models/vo-kitti-scaled-202102182020', \
-    path_to_ws+'results/final_models/vo-kitti-unscaled-202102201302'
+dir_list = [path_to_ws+'results/202410102217', \
+    path_to_ws+'results/202410102217'
     ]
 
 

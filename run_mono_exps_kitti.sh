@@ -4,11 +4,22 @@ d=$(date +%Y%m%d%H%M)
 ###KITTI Monocular Experiments 
 
 ## Train on Odometry dataset:
-#python3 run_mono_training.py --img_resolution 'med' --flow_type 'classical' --camera_height 1.70 --stereo_baseline 0.52 --pretrained_plane_dir 'results/plane-model-kitti-202101072240' --data_dir '/mnt/storage/workspace/andreim/kitti/data_odometry_color' --estimator 'orbslam' --estimator_type 'mono' --train_seq '00_02' '02_02' '06_02' '07_02' '08_02' '00_03' '02_03' '06_03' '07_03' '08_03' '11_02' '11_03' '13_02' '13_03' '14_02' '14_03' '15_02' '15_03' '16_02' '16_03' '19_02' '19_03' --val_seq '05_02' --test_seq '09_02' --date $d --lr 1e-4 --wd 0 --num_epochs 25 --lr_decay_epoch 4 --save_results
+#python3 run_mono_training.py --img_resolution 'med' --flow_type 'classical' --camera_height 1.70 --stereo_baseline 0.52 \
+#  --load_pretrained_pose \
+#  --load_pretrained_depth \
+#  --pretrained_plane_dir 'results/plane-model-eigen-202101201842' \
+#  --pretrained_dir 'results/202410091311' \
+#  --data_dir '/mnt/datadisk/andreim/kitti/kitti_odometry_downsized' --estimator 'orbslam' --estimator_type 'mono' \
+#  --train_seq '00_02' '02_02' '06_02' '07_02' '08_02' '00_03' '02_03' '06_03' '07_03' '08_03' '11_02' '11_03' '13_02' '13_03' '14_02' '14_03' '15_02' '15_03' '16_02' '16_03' '19_02' '19_03' --val_seq '05_02' --test_seq '09_02' \
+#  --date $d --lr 1e-4 --wd 0 --num_epochs 25 --lr_decay_epoch 4 --save_results
 
 
 ## Train on Eigen split (for depth eval)
- python3 run_mono_training.py --flow_type 'classical' --data_format 'eigen' --camera_height 1.70 --stereo_baseline 0.52 --pretrained_plane_dir 'results/plane-model-eigen-202101201842' --data_dir '/mnt/datadisk/andreim/kitti_eigen_split' --estimator 'orbslam' --estimator_type 'mono' --date $d --lr 1e-4 --wd 0 --num_epochs 45 --lr_decay_epoch 12 --save_results
+python3 run_mono_training.py --load_pretrained_pose \
+  --load_pretrained_depth \
+  --pretrained_plane_dir 'results/plane-model-eigen-202101201842' \
+  --pretrained_dir 'results/202410091311' \
+  --flow_type 'classical' --data_format 'eigen' --camera_height 1.70 --stereo_baseline 0.52 --pretrained_plane_dir 'results/plane-model-eigen-202101201842' --data_dir '/mnt/datadisk/andreim/kitti_eigen_split' --estimator 'orbslam' --estimator_type 'mono' --date $d --lr 1e-4 --wd 0 --num_epochs 45 --lr_decay_epoch 12 --save_results
 
 
 ### Plane Segmentation Network Training
