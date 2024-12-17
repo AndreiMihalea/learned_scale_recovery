@@ -5,6 +5,8 @@
 # available in the LICENSE file.
 
 from __future__ import absolute_import, division, print_function
+
+import cv2
 import math
 
 import numpy as np
@@ -12,6 +14,8 @@ import numpy as np
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
+
+from utils.inverse_warp_utils import pixel_coords
 
 
 def disp_to_depth(disp, min_depth, max_depth):
@@ -164,10 +168,11 @@ class BackprojectDepth(nn.Module):
             torch.cat([self.pix_coords, self.ones], 1), requires_grad=False)
 
     def forward(self, depth, inv_K):
-        cam_points = torch.matmul(inv_K[:, :3, :3], self.pix_coords)
-        cam_points = depth.view(self.batch_size, 1, -1) * cam_points
-        cam_points = torch.cat([cam_points, self.ones], 1).reshape(
-            self.batch_size, 4, self.height, self.width)
+        b, _, _ = inv_K.shape
+        cam_points = torch.matmul(inv_K[:, :3, :3], self.pix_coords[:b])
+        cam_points = depth.view(b, 1, -1) * cam_points
+        cam_points = torch.cat([cam_points, self.ones[:b]], 1).reshape(
+            b, 4, self.height, self.width)
 
         return cam_points
 
@@ -256,12 +261,13 @@ class SSIM(nn.Module):
 class ScaleRecovery(nn.Module):
     """Layer to estimate scale through dense geometrical constrain
     """
-    def __init__(self, batch_size, height, width):
+    def __init__(self, batch_size, height, width, scaling_method):
         super(ScaleRecovery, self).__init__()
         self.backproject_depth = BackprojectDepth(batch_size, height, width)
         self.batch_size = batch_size
         self.height = height
         self.width = width
+        self.scaling_method = scaling_method
 
     # derived from https://github.com/zhenheny/LEGO
     def get_surface_normal(self, cam_points, nei=1):
@@ -297,7 +303,7 @@ class ScaleRecovery(nn.Module):
 
         return normals
 
-    def get_ground_mask(self, cam_points, normal_map, threshold=5):
+    def get_ground_mask(self, cam_points, normal_map, threshold=2):
         b, _, h, w = normal_map.size()
         cos = nn.CosineSimilarity(dim=1, eps=1e-6)
 
@@ -313,17 +319,45 @@ class ScaleRecovery(nn.Module):
 
         return ground_mask
 
-    def forward(self, depth, K, real_cam_height):
-        inv_K = torch.inverse(K)
+    def forward(self, depth, K, real_cam_height, imshow=False):
+        _, _, height, width = depth.shape
 
+        real_cam_height /= 30
+
+        inv_K = torch.inverse(K)
         cam_points = self.backproject_depth(depth, inv_K)
         surface_normal = self.get_surface_normal(cam_points)
         ground_mask = self.get_ground_mask(cam_points, surface_normal)
 
+        if self.scaling_method == 'm3':
+            zero_mask = torch.zeros_like(ground_mask)
+            zero_mask[:, :,  height - 10:height, width // 2 - 50:width // 2 + 50] = 1
+            ground_mask = ground_mask * zero_mask
+
+        if imshow:
+            depth_np = depth.detach().cpu().numpy()[0]
+            depth_np = np.repeat(depth_np, 3, axis=0).transpose((1, 2, 0))
+            surface_normal_np = surface_normal.detach().cpu().numpy()[0].transpose((1, 2, 0))
+            ground_mask_np = ground_mask.detach().cpu().numpy()[0]
+            ground_mask_np = np.repeat(ground_mask_np, 3, axis=0).transpose((1, 2, 0))
+
+            img_res = np.concatenate([depth_np, surface_normal_np, ground_mask_np], axis=1)
+            
+            cv2.imshow('img', img_res)
+            cv2.waitKey(0)
+
         cam_heights = (cam_points[:,:-1,:,:] * surface_normal).sum(1).abs().unsqueeze(1)
-        cam_heights_masked = torch.masked_select(cam_heights, ground_mask)
-        cam_height = torch.median(cam_heights_masked).unsqueeze(0)
-        scale = torch.reciprocal(cam_height).mul_(real_cam_height)
+
+        scale_per_batch = []
+        for (height, mask) in zip(cam_heights, ground_mask):
+            cam_height_masked = torch.masked_select(height, mask)
+            # print(mask.sum())
+            cam_height = torch.median(cam_height_masked)
+            scale = torch.reciprocal(cam_height).mul_(real_cam_height)
+            scale_per_batch.append(torch.nan_to_num(scale.reshape(1), nan=-1.0))
+
+        scale = torch.cat(scale_per_batch)
+        # print(scale)
 
         return scale
 

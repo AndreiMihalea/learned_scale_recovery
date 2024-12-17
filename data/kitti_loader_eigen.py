@@ -15,6 +15,7 @@ from liegroups import SE3, SO3
 import os
 import glob
 import pickle
+from data.machine_dataset_mapping import default_data_path, host_data_path
 
 class KittiLoaderPytorch(torch.utils.data.Dataset):
     """Loads the KITTI Odometry Benchmark Dataset"""
@@ -50,7 +51,11 @@ class KittiLoaderPytorch(torch.utils.data.Dataset):
         return int(self.data['gt_poses'].shape[0])
 
     def __getitem__(self, idx):
+        print(i)
         img_names = self.data['filenames'][idx]
+        # This is done to allow reading .mat paths for the dataset that was generated on another machine
+        for i in range(len(img_names)):
+            img_names[i] = img_names[i].replace(default_data_path, host_data_path)
         imgs = []
         for img_name in img_names:
             imgs.append(self.load_image(img_name))        

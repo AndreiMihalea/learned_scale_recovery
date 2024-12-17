@@ -16,6 +16,8 @@ import scipy.io as sio
 from liegroups import SE3, SO3
 import os
 import glob
+from data.machine_dataset_mapping import default_data_path, host_data_path
+
 
 class KittiLoaderPytorch(torch.utils.data.Dataset):
     """Loads the KITTI Odometry Benchmark Dataset"""
@@ -56,6 +58,7 @@ class KittiLoaderPytorch(torch.utils.data.Dataset):
 
         self.config = config
         basedir = config['data_dir']
+        self.basedir = basedir
         self.seq_len = config['img_per_sample']
         self.transform_img = transform_img
         self.num_frames = config['num_frames']
@@ -108,8 +111,12 @@ class KittiLoaderPytorch(torch.utils.data.Dataset):
             print(s)
             print(os.path.join(basedir, seq_name[s],'{}_data_{}.mat'.format(config['estimator_type'], config['estimator'])))
             data = sio.loadmat(os.path.join(basedir, seq_name[s],'{}_data_{}.mat'.format(config['estimator_type'], config['estimator'])))
-            
-            self.left_cam_filenames.append(np.copy(data['cam_02'].reshape((-1,1))))
+
+            # This is done to allow reading .mat paths for the dataset that was generated on another machine
+            cam_02_data = np.copy(data['cam_02'].reshape((-1,1))).astype('object')
+            for i in range(len(cam_02_data)):
+                cam_02_data[i][0] = cam_02_data[i][0].replace(default_data_path, host_data_path)
+            self.left_cam_filenames.append(cam_02_data)
             self.raw_intrinsic_trials_left.append(np.copy(data['intrinsics_left']))
             self.raw_gt_trials.append(np.copy(data['sparse_gt_pose']))
             self.raw_vo_traj.append(np.copy(data['sparse_vo']))

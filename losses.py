@@ -3,6 +3,7 @@ import torch.nn as nn
 import numpy as np
 import glob
 
+from models.dnet_layers import ScaleRecovery
 from utils.inverse_warp_utils import get_scale_factor
 from utils.learning_helpers import disp_to_depth, save_obj
 from utils.geometry_helpers import euler2mat
@@ -122,19 +123,27 @@ class Compute_Loss(nn.modules.Module):
         self.scale_factor_list = {}
         for i in range(0, self.config['num_epochs']+1):
             self.scale_factor_list[i] = []
-  
-    def forward(self, source_imgs, target_img, poses, disparity, intrinsics, pose_vec_weight=None, validate=False,epoch=5, target_img_right=None):
+
+        if self.config['scaling_method'] == 'm1':
+            self.scale_factor_estimator = get_scale_factor
+        elif self.config['scaling_method'] in ['m2', 'm3']:
+            self.scale_factor_estimator = ScaleRecovery(config['minibatch'], 192, 640, self.config['scaling_method']).to(self.config['device'])
+        else:
+            self.scale_factor_estimator = get_scale_factor
+            self.config['l_scale_recovery'] = False
+
+    def forward(self, source_imgs, target_img, poses, disparity, intrinsics, pose_vec_weight=None, validate=False,
+                epoch=5, target_img_right=None, batch_idx=0):
         ''' Adopting from https://github.com/JiawangBian/SC-SfMLearner-Release/blob/master/loss_functions.py '''
         zero = torch.zeros(1).type_as(intrinsics)
         losses = {'l_reconstruct_inverse': zero.clone(), 'l_reconstruct_forward': zero.clone(), 'l_depth': zero.clone(), 'l_smooth': zero.clone(), \
             'l_scale_depth': zero.clone(), 'l_scale_pose': zero.clone(), 'l_left_right_consist': zero.clone(), 'l_brightness': zero.clone()  }
         disparity, source_disparities = disparity[0], disparity[1:] #separate disparity list into source and target disps
         poses, poses_inv = poses[0], poses[1] #separate pose change predictions
-        B,_,h,w = target_img.size()     
-        
+        B,_,h,w = target_img.size()
                 
-        if self.config['l_scale_recovery'] and epoch > 0: #keep out of loop, only need to compute once
-            plane_est = self.plane_model(target_img, epoch=epoch)[0].detach()
+        # if self.config['l_scale_recovery'] and epoch > 0: #keep out of loop, only need to compute once
+        #     plane_est = self.plane_model(target_img, epoch=epoch)[0].detach()
 
         for scale, disp in enumerate(disparity): 
             #upsample and convert to depth
@@ -152,18 +161,27 @@ class Compute_Loss(nn.modules.Module):
             if self.config['l_smooth']:
                 losses['l_smooth'] += (self.l_smooth_weight*get_smooth_loss(disp, target_img) )/( 2**scale)  
 
-            '''Ground Plane Loss (experimental)'''  
+            '''Ground Plane Loss (experimental)'''
+            with torch.no_grad():
+                scale_factor = self.scale_factor_estimator(d, intrinsics, self.config['camera_height'])  # batch_idx % 300 == 0 instead of False)
+            self.scale_factor_list[epoch].append(scale_factor.mean().item())
             if self.config['l_scale_recovery'] and epoch > 0:
                 # scale_factor, plane_loss = self.plane_loss(plane_est, d, intrinsics)
                 # self.scale_factor_list[epoch].append(scale_factor.mean().item())
                 # losses['l_scale_depth'] += self.l_scale_depth_weight*plane_loss
-                scale_factor = get_scale_factor(d, intrinsics)
                 scaled_target_depth = (scale_factor.reshape((-1, 1, 1, 1)) * d).detach()
-                losses['l_scale_depth'] += self.l_scale_depth_weight * torch.abs((d - scaled_target_depth) / scaled_target_depth).mean()
+                # In the case of getting the scale factor from the surface map, there are situations where the ground
+                # mask has no pixels, therefore the scale would be nan (was replaced by -1); in such situations, the
+                # the loss is multiplied by 0, so no gradient flows
+                valid_mask = torch.ones_like(scale_factor)
+                valid_mask[scale_factor==-1] = 0
+                valid_mask_depth = valid_mask.reshape((-1, 1, 1, 1))
+                valid_mask_pose = valid_mask.reshape((-1, 1))
+                losses['l_scale_depth'] += self.l_scale_depth_weight * torch.abs((d - scaled_target_depth) * valid_mask_depth / scaled_target_depth).mean()
 
                 for pose in poses:
                     target_pose = (pose[:,0:3].clone()*( scale_factor.reshape((-1,1)).expand_as(pose[:,0:3])) ).detach()
-                    losses['l_scale_pose'] += (1+min(2*epoch,9))*self.l_scale_pose_weight*(pose[:,0:3] - target_pose).abs().mean()
+                    losses['l_scale_pose'] += (1+min(2*epoch,9))*self.l_scale_pose_weight*((pose[:,0:3] - target_pose) * valid_mask_pose).abs().mean()
 
             reconstruction_errors = []
             masks = []

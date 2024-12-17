@@ -3,6 +3,7 @@ import torch
 from utils.learning_helpers import *
 from models.stn import *
 from data.kitti_loader import process_sample_batch
+from tqdm import tqdm
 
 def compute_pose_consistency_loss(poses, poses_inv):
     pose_consistency_loss = 0
@@ -54,7 +55,7 @@ class Trainer():
         dset_size = len(dset)
         running_loss = None         
             # Iterate over data.
-        for batch_num, data in enumerate(dset):
+        for batch_num, data in tqdm(enumerate(dset), total=dset_size):
             target_img, source_img_list, gt_lie_alg_list, vo_lie_alg_list, flow_imgs, intrinsics, target_img_aug, \
             source_img_aug_list, gt_lie_alg_aug_list, vo_lie_alg_aug_list, intrinsics_aug = process_sample_batch(data, self.config)
                 
@@ -64,7 +65,7 @@ class Trainer():
                 batch_size = target_img_aug.shape[0]
                 
                 ## compute disparities in same batch          
-                imgs = torch.cat([target_img_aug] + source_img_aug_list,0)
+                imgs = torch.cat([target_img_aug] + source_img_aug_list, 0)
                 disparities = self.depth_model(imgs, epoch=epoch)
                 target_disparities = [disp[0:batch_size] for disp in disparities]
                 source_disp_1 = [disp[batch_size:(2*batch_size)] for disp in disparities]
@@ -82,7 +83,8 @@ class Trainer():
                 # print('back',poses_inv[0][0,2].item(), 'gt inv',-gt_lie_alg_list[0][0,2].item())                    
 
                 minibatch_loss=0  
-                losses = self.loss(source_img_list, target_img, [poses, poses_inv], disparities, intrinsics_aug,epoch=epoch)
+                losses = self.loss(source_img_list, target_img, [poses, poses_inv], disparities, intrinsics_aug,
+                                   epoch=epoch, batch_idx=batch_num)
                 
                 
                 ## pose losses (simpler to add here than in the main loss function)

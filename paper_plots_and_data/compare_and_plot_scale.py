@@ -15,7 +15,7 @@ import matplotlib
 matplotlib.use('Agg')
 
 path_to_ws = '/home/nemodrive/workspace/andreim/learned_scale_recovery/'
-path_to_dset_downsized = '/mnt/datadisk/andreim/kitti/kitti_odometry_downsized/'
+path_to_dset_downsized = '/raid/andreim/kitti/kitti_odometry_downsized/'
 # seq_list = ['00_02', '02_02', '06_02', '07_02', '08_02', '05_02', '09_02', '10_02'] 
 seq_list = ['05_02', '09_02', '10_02'] 
 method_list = ['scaled', 'unscaled']

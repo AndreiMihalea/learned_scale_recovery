@@ -36,6 +36,7 @@ parser.add_argument('--img_per_sample', type=int, default=3) #1 target image, an
 parser.add_argument('--data_dir', type=str, default='/media/m2-drive/datasets/KITTI-downsized-stereo')
 parser.add_argument('--data_format', type=str, default='odometry') #odmetry or eigen
 parser.add_argument('--date', type=str, default='0000000')
+parser.add_argument('--name', type=str, default='default')
 parser.add_argument('--train_seq', nargs='+', type=str, default=['00_02', '02_02'])
 parser.add_argument('--val_seq', nargs='+',type=str, default=['05_02'])
 parser.add_argument('--test_seq', nargs='+', type=str, default=['09_02'])
@@ -48,23 +49,26 @@ parser.add_argument('--lr_decay_epoch', type=float, default=4)
 parser.add_argument('--save_results', action='store_true', default=True)
 parser.add_argument('--max_depth', type=float, default=80./30) #  80/30
 parser.add_argument('--min_depth', type=float, default=0.06) #0.06
+parser.add_argument('--scaling_method', type=str, default='m1') # can be m1 (small ground surface),
+                                                                             # m2 (normal map) or
+                                                                             # m3 (normal map + small surface)
 
 ''' Losses'''
 parser.add_argument('--l_reconstruction', action='store_true', default=True, help='use photometric reconstruction losses (l1, ssim)')
 parser.add_argument('--l_ssim', action='store_true', default=True, help='without ssim, only use L1 error')
-parser.add_argument('--l1_weight', type=float, default=0.15) #0.15
-parser.add_argument('--l_ssim_weight', type=float, default=0.85) #0.85
+parser.add_argument('--l1_weight', type=float, default=0.05) #0.15
+parser.add_argument('--l_ssim_weight', type=float, default=0.17) #0.85
 parser.add_argument('--with_auto_mask', action='store_true', default=True, help='with the the mask for stationary points')
 
 parser.add_argument('--l_pose_consist', action='store_true', default=True, help='ensure forward and backward pose predictions align')
 parser.add_argument('--l_pose_consist_weight', type=float, default=5)
 parser.add_argument('--l_inverse', action='store_true', default=True, help='reproject target image to source images as well')
 parser.add_argument('--l_depth_consist', action='store_true', default=True, help='Depth consistency loss from https://arxiv.org/pdf/1908.10553.pdf')
-parser.add_argument('--l_depth_consist_weight', type=float, default=0.14) 
+parser.add_argument('--l_depth_consist_weight', type=float, default=0.14)
 parser.add_argument('--with_depth_mask', action='store_true', default=True, help='with the depth consistency mask for moving objects and occlusions or not')
 parser.add_argument('--l_scale_recovery', action='store_true', default=True, help='enforces metric scale consistency')
-parser.add_argument('--l_scale_depth_weight', type=float, default=0.02) 
-parser.add_argument('--l_scale_pose_weight', type=float, default=0.6) 
+parser.add_argument('--l_scale_depth_weight', type=float, default=0.02) #0.02
+parser.add_argument('--l_scale_pose_weight', type=float, default=0.6) #0.6
 parser.add_argument('--camera_height', type=float, default=1.70) #1.52 for oxford, 1.70 for KITTI
 parser.add_argument('--l_smooth', action='store_true', default=True)
 parser.add_argument('--l_smooth_weight', type=float, default=0.05) #0.15
@@ -83,10 +87,10 @@ This is not a required step, but is recommended to guarantee proper initializati
 Otherwise, just load the pretrained oxford robotcar model prior to training on KITTI.
 
 '''
-parser.add_argument('--load_pretrained_pose', action='store_true', default=True, help= 'Use an existing pose model')
-parser.add_argument('--load_pretrained_depth', action='store_true', default=True, help= 'Use an existing depth model')
-parser.add_argument('--pretrained_dir', type=str, default='results/final_models/vo-oxford-unscaled-202102092331')      
-parser.add_argument('--pretrained_plane_dir', type=str, default='')   #'results/plane-model-med-res-oxford',    
+parser.add_argument('--load_pretrained_pose', action='store_true', default=True, help='Use an existing pose model')
+parser.add_argument('--load_pretrained_depth', action='store_true', default=True, help='Use an existing depth model')
+parser.add_argument('--pretrained_dir', type=str, default='results/oxford_one_iter_unscaled')      
+parser.add_argument('--pretrained_plane_dir', type=str, default='')   #'results/plane-model-med-res-oxford',
         
 args = parser.parse_args()
 config={
@@ -187,8 +191,6 @@ def main():
     trainer = Trainer(config, models, loss, optimizer)
     cudnn.benchmark = True
 
-
-
     best_val_loss = {}
     best_loss_epoch = {}
     for key, dset in eval_dsets.items():
@@ -200,7 +202,7 @@ def main():
         train_losses = trainer.forward(dset_loaders['train'], epoch, 'train')
         with torch.no_grad():
             val_losses = trainer.forward(dset_loaders['val'], epoch, 'val')    
-#        
+
         if epoch == 0 or (epoch == 1 and (config['load_pretrained_pose'] == True) ):
             val_writer = SummaryWriter(comment="tw-val-{}-test_seq-{}_val".format(args.val_seq[0], args.test_seq[0]))
             train_writer = SummaryWriter(comment="tw-val-{}-test_seq-{}_train".format(args.val_seq[0], args.test_seq[0]))
@@ -260,8 +262,7 @@ def main():
                     }
                     
                 if args.save_results:   ##Save the best models
-                    os.makedirs('results/{}'.format(config['date']), exist_ok=True)
-                    
+                    os.makedirs('results/{}'.format(config['name']), exist_ok=True)
                     if (val_losses['l_reconstruct_forward'] + val_losses['l_reconstruct_inverse']) < best_val_loss[key] and epoch > 0: # and epoch > 2*(config['iterations']-1):
                         best_val_loss[key] = (val_losses['l_reconstruct_forward'] + val_losses['l_reconstruct_inverse'])
                         best_loss_epoch[key] = epoch
@@ -269,17 +270,17 @@ def main():
                         pose_dict_loss = pose_model.state_dict()
                         if key == 'val':
                             print("Lowest validation loss (saving model)")       
-                            torch.save(depth_dict_loss, 'results/{}/{}-depth-best-loss-val_seq-{}-test_seq-{}.pth'.format(config['date'], ts, args.val_seq[0], args.test_seq[0]))
-                            torch.save(pose_dict_loss, 'results/{}/{}-pose-best-loss-val_seq-{}-test_seq-{}.pth'.format(config['date'], ts, args.val_seq[0], args.test_seq[0]))
+                            torch.save(depth_dict_loss, 'results/{}/{}-depth-best-loss-val_seq-{}-test_seq-{}.pth'.format(config['name'], ts, args.val_seq[0], args.test_seq[0]))
+                            torch.save(pose_dict_loss, 'results/{}/{}-pose-best-loss-val_seq-{}-test_seq-{}.pth'.format(config['name'], ts, args.val_seq[0], args.test_seq[0]))
 
                         if args.data_format == 'odometry': 
                             results[key]['best_loss_epoch'] = best_loss_epoch[key]
-                            save_obj(results, 'results/{}/{}-results-val_seq-{}-test_seq-{}'.format(config['date'], ts, args.val_seq[0], args.test_seq[0]))
-                        save_obj(config, 'results/{}/config'.format(config['date']))
-                        f = open("results/{}/config.txt".format(config['date']),"w")
+                            save_obj(results, 'results/{}/{}-results-val_seq-{}-test_seq-{}'.format(config['name'], ts, args.val_seq[0], args.test_seq[0]))
+                        save_obj(config, 'results/{}/config'.format(config['name']))
+                        f = open("results/{}/config.txt".format(config['name']),"w")
                         f.write( str(config) )
                         f.close()
-    save_obj(loss.scale_factor_list, 'results/{}/scale_factor'.format(config['date']))      
+    save_obj(loss.scale_factor_list, 'results/{}/scale_factor'.format(config['name']))      
     duration = timeSince(start)    
     print("Training complete (duration: {})".format(duration))
  

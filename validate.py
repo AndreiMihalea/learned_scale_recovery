@@ -7,6 +7,8 @@ from pyslam.metrics import TrajectoryMetrics
 import csv
 from train_mono import solve_pose
 from data.kitti_loader import process_sample, process_sample_batch
+from tqdm import tqdm
+
 
 def test_depth_and_reconstruction(device, models,  dset, config, epoch=0, source_img_idx=0):
 
@@ -63,6 +65,7 @@ def test_depth_and_reconstruction(device, models,  dset, config, epoch=0, source
                 reconstructed_disp_array.numpy().squeeze(), d_masks )
 
 def compute_trajectory(pose_vec, gt_traj, method='odom'):
+    # print(pose_vec.shape)
     est_traj = [gt_traj[0]]
     cum_dist = [0]
     for i in range(0,pose_vec.shape[0]):
@@ -110,7 +113,7 @@ def test_trajectory(config, device, models, dset, epoch):
     #initialize the relevant outputs
     poses_stacked, gt_lie_alg_stacked = np.empty((0,6)), np.empty((0,6))
     
-    for data in dset:
+    for data in tqdm(dset):
         target_img, source_img_list, gt_lie_alg_list, vo_lie_alg_list, flow_imgs, intrinsics, \
             target_img_aug, source_img_aug_list, gt_lie_alg_aug_list, vo_lie_alg_aug_list, intrinsics_aug = process_sample_batch(data, config)
         

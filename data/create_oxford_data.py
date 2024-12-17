@@ -13,8 +13,8 @@ import re
 from colour_demosaicing import demosaicing_CFA_Bayer_bilinear as demosaic
 
 parser = argparse.ArgumentParser(description='')
-parser.add_argument("--source_dir", type=str, default='/mnt/datadisk/andreim/oxford_robotcar')
-parser.add_argument("--target_dir", type=str, default='/mnt/datadisk/andreim/oxford_robotcar_downsized')
+parser.add_argument("--source_dir", type=str, default='/raid/andreim/oxford_robotcar')
+parser.add_argument("--target_dir", type=str, default='/raid/andreim/oxford_robotcar_downsized')
 parser.add_argument("--camera_type", type=str, default='stereo')
 parser.add_argument("--remove_static", action='store_true', default=True)
 args = parser.parse_args()

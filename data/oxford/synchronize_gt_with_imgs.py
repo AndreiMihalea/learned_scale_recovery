@@ -17,7 +17,7 @@ This script processes ground truth poses for the oxford robotcar dataset
 RTK ground truth must be synchronized with the image timestamps
 
 '''
-data_dir = '/mnt/datadisk/andreim/oxford_robotcar' ## enter path to robotcar folders here
+data_dir = '/raid/andreim/oxford_robotcar' ## enter path to robotcar folders here
 seq_names = ['2014-11-18-13-20-12', '2015-07-08-13-37-17', '2015-07-10-10-01-59', '2015-08-12-15-04-18']
 output_dir = 'stereo_vo_traj'
 

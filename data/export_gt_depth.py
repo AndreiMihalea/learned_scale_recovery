@@ -121,7 +121,7 @@ def export_gt_depths_kitti():
 
     parser.add_argument('--data_path',
                         type=str,
-                        default="/mnt/datadisk/andreim/kitti_raw",
+                        default="/raid/andreim/kitti_raw",
                         help='path to the root of the KITTI data')
     parser.add_argument('--split',
                         type=str,

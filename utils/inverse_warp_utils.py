@@ -34,14 +34,14 @@ def pixel2cam(depth, intrinsics_inv):
     return cam_coords * depth.unsqueeze(1)
 
 
-def get_scale_factor(depth: torch.tensor, intrinsic):
+def get_scale_factor(depth: torch.tensor, intrinsic, cam_height):
     global pixel_coords
     """
     @param disp: depth map, [B, 1, H, W]
     :returns depth factor
     """
     batch_size, _, height, width = depth.shape
-    CAM_HEIGHT = 1.70 / 30  # 1.54 for UPB
+    cam_height /= 30  # 1.54 for UPB
 
     # construct intrinsic camera matrix
     # intrinsic = torch.tensor(intrinsic).repeat(batch_size, 1, 1)
@@ -57,7 +57,7 @@ def get_scale_factor(depth: torch.tensor, intrinsic):
     median = samples.median(1)[0]
 
     # get depth factor
-    factor = CAM_HEIGHT / median
+    factor = cam_height / median
     pixel_coords = None
     return factor
 

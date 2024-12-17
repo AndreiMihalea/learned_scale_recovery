@@ -10,8 +10,8 @@ from liegroups import SE3
 import pickle
 
 parser = argparse.ArgumentParser(description='')
-parser.add_argument("--source_dir", type=str, default='/mnt/datadisk/andreim/kitti_raw/') #path to full raw dataset
-parser.add_argument("--target_dir", type=str, default='/mnt/datadisk/andreim/kitti_eigen_split')
+parser.add_argument("--source_dir", type=str, default='/raid/andreim/kitti_raw/') #path to full raw dataset
+parser.add_argument("--target_dir", type=str, default='/raid/andreim/kitti_eigen_split')
 args = parser.parse_args()
 
 

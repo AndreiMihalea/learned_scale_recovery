@@ -15,7 +15,11 @@ def canvas_to_array(fig):
     return np.rollaxis(image_np, 2)
 
 def plot_disp(disp, save_file = None):
-    fig = plt.figure(frameon=False)
+    if disp.ndim == 2:
+        h, w = disp.shape
+    else:
+        h, w, _ = disp.shape
+    fig = plt.figure(frameon=False, figsize=[w / 100, h / 100])
     ax = plt.Axes(fig, [0., 0., 1., 1.])
     ax.set_axis_off()
     fig.add_axes(ax)

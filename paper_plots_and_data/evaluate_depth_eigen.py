@@ -8,6 +8,10 @@
 import numpy as np
 import torch
 import matplotlib
+
+from models.dnet_layers import ScaleRecovery
+from vis import plot_disp
+
 matplotlib.use('Agg')
 import matplotlib.pyplot as plt
 import sys
@@ -19,6 +23,8 @@ from utils.custom_transforms import *
 import os
 import glob
 import cv2
+
+SAVE_DIR = '/home/andrei/Documents/Facultate/PhD/figures_surface_normal'
 
 def compute_errors(gt, pred):
     """Computation of error metrics between predicted and ground truth depths
@@ -56,14 +62,14 @@ if __name__=='__main__':
     MAX_DEPTH = 80
 
     path_to_ws = '/home/nemodrive/workspace/andreim/learned_scale_recovery/' ##update this
-    path_to_dset_downsized = '/mnt/datadisk/andreim/kitti_eigen_split/'
+    path_to_dset_downsized = '/mnt/storage/workspace/andreim/kitti_eigen_split/'
 
-    dir = path_to_ws + 'results/202410171911/'
+    dir = path_to_ws + 'results/kitti_eigen_pre1_m2'
     pretrained_plane_dir = 'results/plane-model-eigen-202101201842'
     
-    cam_height=1.70
-    median_scaling=False #align scale of predicted depth with ground truth using median depth
-    plane_rescaling=False #align scale using ground plane detection and known camera height
+    cam_height = 1.70
+    median_scaling = True #align scale of predicted depth with ground truth using median depth
+    plane_rescaling = False #align scale using ground plane detection and known camera height
     post_process = True #use the standard post-processing that flips images, recomputes depth, and merges with unflipped depth
     benchmark = 'eigen' ### eigen_benchmark for improved gt, 'eigen' for standard benchmark
 
@@ -75,7 +81,7 @@ if __name__=='__main__':
 
 
     config['data_dir'] = path_to_dset_downsized+config['img_resolution'] + '_res/' #
-    config['minibatch'] = 6
+    config['minibatch'] = 1
     config['load_pretrained'] = True
     config['data_format'] = 'eigen'
 
@@ -101,43 +107,70 @@ if __name__=='__main__':
     pred_disps = []
     scale_factor_list = []
 
-    with torch.no_grad():
-        for k, data in enumerate(test_dset_loaders):
-            target_img, source_imgs, lie_alg, intrinsics, flow_imgs  = data
-            target_img, source_imgs, intrinsics = target_img['color_left'], source_imgs['color_left'], intrinsics['color_left']
-            target_img = target_img.to(device)
-            B = target_img.shape[0]
-            
-            if post_process == True:
-                # Post-processed results require each image to have two forward passes
-                target_img = torch.cat((target_img, torch.flip(target_img, [3])), 0)        
-            
-            disparities = depth_model(target_img, epoch=50)
-            
-            disps, depths = disp_to_depth(disparities[0], config['min_depth'], config['max_depth'])
-            
-            if plane_rescaling==True:
-                plane_est = plane_model(target_img[0:B], epoch=50)[0].detach()
-                intrinsics = intrinsics[:,0].type(torch.FloatTensor).to(device).clone()
-                scale_factor = scale_recovery(plane_est, depths[0:B], intrinsics, h_gt=cam_height/30.)
-                scale_factor_list.append(scale_factor.cpu().numpy())    
-            
-            pred_disp = disps.cpu()[:, 0].numpy()
-            
-            if post_process == True:
-                N = pred_disp.shape[0] // 2
-                pred_disp = batch_post_process_disparity(pred_disp[:N], pred_disp[N:, :, ::-1])        
+    scale_recovery = ScaleRecovery(config['minibatch'], 192, 640, 'm2').to(device)
+    for neighbourhood in [1]:
+        for threshold in [1]:
+            with torch.no_grad():
+                for k, data in enumerate(test_dset_loaders):
+                    target_img, source_imgs, lie_alg, intrinsics, flow_imgs  = data
+                    target_img, source_imgs, intrinsics = target_img['color_left'], source_imgs['color_left'], intrinsics['color_left']
+                    target_img = target_img.to(device)
+                    B = target_img.shape[0]
 
-            depth = 30*depths
-            depth = depth.cpu()[:, 0].numpy()
-            depth_list.append(depth)
-            pred_disps.append(pred_disp)
-            
+                    if post_process == True:
+                        # Post-processed results require each image to have two forward passes
+                        target_img = torch.cat((target_img, torch.flip(target_img, [3])), 0)
 
-        depth_list = np.concatenate(depth_list)
-        pred_disps = np.concatenate(pred_disps)
-        if plane_rescaling==True:
-            scale_factor_list = np.concatenate(scale_factor_list)
+                    disparities = depth_model(target_img, epoch=50)
+                    disps, depths = disp_to_depth(disparities[0], config['min_depth'], config['max_depth'])
+
+                    inv_K = torch.inverse(intrinsics.type(torch.FloatTensor).to(device)[:,0,:,:])
+                    cam_points = scale_recovery.backproject_depth(depths[:config['minibatch']] * 30, inv_K)
+                    surface_normal = scale_recovery.get_surface_normal(cam_points, neighbourhood)
+                    ground_mask = scale_recovery.get_ground_mask(cam_points, surface_normal, threshold)
+
+                    # scale_recovery(depths[:depths.shape[0]//2].to(device), intrinsics.type(torch.FloatTensor).to(device)[:,0,:,:], config['camera_height'], True)
+                    # print(target_img.cpu().numpy().shape, disps.cpu().numpy().shape)
+                    img = cv2.cvtColor(target_img.cpu().numpy()[0].transpose(1, 2, 0), cv2.COLOR_RGB2BGR)
+                    # cv2.imwrite(os.path.join(SAVE_DIR, f'{k:04}_img.png'), img * 255.)
+                    # cv2.imshow('img', img)
+                    # cv2.waitKey(0)
+                    disp = plot_disp(disps[0].cpu().numpy().transpose(1, 2, 0))
+                    disp = cv2.cvtColor(disp.transpose(1, 2, 0), cv2.COLOR_RGB2BGR)
+                    # cv2.imwrite(os.path.join(SAVE_DIR, f'{k:04}_disp.png'), disp)
+                    # cv2.imshow('disp', disp)
+                    # cv2.waitKey(0)
+                    mask = ground_mask.detach().cpu().numpy()[0][0].astype(np.uint8) * 255
+                    # cv2.imwrite(os.path.join(SAVE_DIR, f'{k:04}_mask_{neighbourhood}_{threshold}.png'), mask)
+                    # cv2.imshow('mask', mask)
+                    # cv2.waitKey(0)
+                    normal = cv2.cvtColor(((surface_normal + 1) / 2).detach().cpu().numpy()[0].transpose(1, 2, 0), cv2.COLOR_RGB2BGR)
+                    # cv2.imwrite(os.path.join(SAVE_DIR, f'{k:04}_normal_{neighbourhood}.png'), normal * 255.)
+                    # cv2.imshow('normal', normal)
+                    # cv2.waitKey(0)
+
+                    if plane_rescaling==True:
+                        plane_est = plane_model(target_img[0:B], epoch=50)[0].detach()
+                        intrinsics = intrinsics[:,0].type(torch.FloatTensor).to(device).clone()
+                        scale_factor = scale_recovery(plane_est, depths[0:B], intrqinsics, h_gt=cam_height/30.)
+                        scale_factor_list.append(scale_factor.cpu().numpy())
+
+                    pred_disp = disps.cpu()[:, 0].numpy()
+
+                    if post_process == True:
+                        N = pred_disp.shape[0] // 2
+                        pred_disp = batch_post_process_disparity(pred_disp[:N], pred_disp[N:, :, ::-1])
+
+                    depth = 30*depths
+                    depth = depth.cpu()[:, 0].numpy()
+                    depth_list.append(depth)
+                    pred_disps.append(pred_disp)
+
+
+    depth_list = np.concatenate(depth_list)
+    pred_disps = np.concatenate(pred_disps)
+    if plane_rescaling==True:
+        scale_factor_list = np.concatenate(scale_factor_list)
 
     gt_path = os.path.join(splits_dir, "gt_depths.npz")
     gt_depths = np.load(gt_path, allow_pickle=True, fix_imports=True, encoding='latin1')["data"]

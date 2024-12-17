@@ -13,8 +13,8 @@ import argparse
 from liegroups import SE3
 
 parser = argparse.ArgumentParser(description='')
-parser.add_argument("--source_dir", type=str, default='/mnt/datadisk/andreim/kitti/data_odometry_color/pose')
-parser.add_argument("--target_dir", type=str, default='/mnt/datadisk/andreim/kitti/kitti_odometry_downsized')
+parser.add_argument("--source_dir", type=str, default='/raid/andreim/kitti/data_odometry_color/pose')
+parser.add_argument("--target_dir", type=str, default='/raid/andreim/kitti/kitti_odometry_downsized')
 parser.add_argument("--remove_static", action='store_true', default=False)
 args = parser.parse_args()
 
