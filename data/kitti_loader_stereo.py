@@ -216,7 +216,7 @@ class KittiLoaderPytorch(torch.utils.data.Dataset):
         target_im = {'color_left': orig_imgs[0:self.seq_len][target_idx], 'color_aug_left': transformed_imgs[0:self.seq_len][target_idx]}
         source_imgs = {'color_left': [orig_imgs[0:self.seq_len][i] for i in source_idx], 'color_aug_left': [transformed_imgs[0:self.seq_len][i] for i in source_idx] }
         intrinsics = {'color_left': orig_intrinsics[0:self.seq_len], 'color_aug_left': transformed_intrinsics[0:self.seq_len]}
-        lie_alg = {'color': orig_lie_alg[0:self.seq_len], 'color_aug': transformed_lie_alg[0:self.seq_len]}     
+        lie_alg = {'color': orig_lie_alg[0:self.seq_len], 'color_aug': transformed_lie_alg[0:self.seq_len]}        
 
         return target_im, source_imgs, lie_alg, intrinsics, (flow_imgs_fwd, flow_imgs_back)
 

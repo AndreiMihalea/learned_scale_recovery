@@ -11,7 +11,7 @@ python3 run_mono_training.py --img_resolution 'med' --flow_type 'classical' \
  --data_dir "${host_data_path}/andreim/kitti/kitti_odometry_downsized" \
  --estimator 'orbslam' --estimator_type 'mono' \
  --train_seq '00_02' '02_02' '06_02' '07_02' '08_02' '00_03' '02_03' '06_03' '07_03' '08_03' '11_02' '11_03' '13_02' '13_03' '14_02' '14_03' '15_02' '15_03' '16_02' '16_03' '19_02' '19_03' --val_seq '05_02' --test_seq '09_02' \
- --date $d --name test_pose --lr 1e-4 --wd 0 --num_epochs 21 --lr_decay_epoch 4 --img_per_sample 5 \
+ --date $d --name test_pose --lr 1e-4 --wd 0 --num_epochs 21 --lr_decay_epoch 4 \
  --save_results --scaling_method $method \
  --pretrained_dir results/oxford_pre1_$method
 
