@@ -16,17 +16,8 @@ def solve_pose(pose_model, depths, target_img, source_img_list, flow_imgs, intri
     flow_imgs_fwd, flow_imgs_back = flow_imgs
     
     for source_img, source_depth, flow_img_fwd, flow_img_back, source_name in zip(source_img_list, source_depths, flow_imgs_fwd, flow_imgs_back, source_names):
-        # For PairAttentionPoseNet, we need to prepare image pairs
-        pair_fwd = torch.stack([target_img, source_img], dim=1)  # [B, 2, C, H, W]
-        pair_inv = torch.stack([source_img, target_img], dim=1)  # [B, 2, C, H, W]
-        
-        # Get translation and rotation separately
-        trans_fwd, rot_fwd = pose_model(pair_fwd)
-        trans_inv, rot_inv = pose_model(pair_inv)
-        
-        # Combine translation and rotation into single pose vector [B, 6]
-        pose = torch.cat([trans_fwd.squeeze(2), rot_fwd.squeeze(2)], dim=1)
-        pose_inv = torch.cat([trans_inv.squeeze(2), rot_inv.squeeze(2)], dim=1)
+        pose = pose_model([target_img, source_img, flow_img_fwd])
+        pose_inv = pose_model([source_img, target_img, flow_img_back])
        
         poses.append(pose)
         poses_inv.append(pose_inv)

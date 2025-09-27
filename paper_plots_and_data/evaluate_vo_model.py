@@ -71,7 +71,6 @@ for seq in seq_list:
     if load_from_mat == False:
         import models.packetnet_depth_and_egomotion as models_packetnet
         import models.depth_and_egomotion as models
-        from models.pair_attention_posenet import PairAttentionPoseNet
         
         depth_model = models.depth_model(config).to(device)
         
