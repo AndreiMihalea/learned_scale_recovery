@@ -179,15 +179,19 @@ class KittiLoaderPytorch(torch.utils.data.Dataset):
         intrinsics = self.intrinsic_samples_left[idx] 
 
 
-        target_idx = int(len(imgs_left)/2)   
-        source_idx = list(range(0,self.seq_len))
-        source_idx.pop(target_idx)
+        # Generate all possible pairs for multi-pair pose prediction
+        # For seq_len=3: pairs are (0,1), (1,2), (0,2)
+        # For seq_len=4: pairs are (0,1), (1,2), (2,3), (0,2), (0,3), (1,3)
+        pair_indices = []
+        for i in range(self.seq_len):
+            for j in range(i+1, self.seq_len):
+                pair_indices.append((i, j))
         
         lie_alg = []
         transformed_lie_alg = []
-        for i in range(0,self.seq_len-1):
-            lie_alg.append(list(self.compute_target(idx,target_idx, source_idx[i])))    
-            transformed_lie_alg.append(list(self.compute_target(idx,target_idx, source_idx[i])))   
+        for src_idx, tgt_idx in pair_indices:
+            lie_alg.append(list(self.compute_target(idx, tgt_idx, src_idx)))    
+            transformed_lie_alg.append(list(self.compute_target(idx, tgt_idx, src_idx)))   
         
         # if self.load_stereo:
         #     lie_alg = lie_alg+lie_alg
@@ -203,22 +207,81 @@ class KittiLoaderPytorch(torch.utils.data.Dataset):
         
 
         if self.config['flow_type'] == 'classical': # and self.config['preprocess_flow'] == False: ## compute flow online
-            for i in range(0,len(imgs_left)-1):  
-                flow_img_t = np.array(imgs_left[target_idx].convert('L'))
-                flow_img_s = np.array(imgs_left[source_idx[i]].convert('L'))
+            for src_idx, tgt_idx in pair_indices:  
+                flow_img_t = np.array(imgs_left[tgt_idx].convert('L'))
+                flow_img_s = np.array(imgs_left[src_idx].convert('L'))
                 flow_img_fwd = cv2.calcOpticalFlowFarneback(flow_img_t,flow_img_s, None, 0.5, 3, 15, 3, 5, 1.2, 0) #fwd is target to source
                 flow_img_fwd = torch.from_numpy(np.transpose(flow_img_fwd, (2,0,1))).float()
                 flow_img_back = cv2.calcOpticalFlowFarneback(flow_img_s,flow_img_t, None, 0.5, 3, 15, 3, 5, 1.2, 0) #back is src to target
                 flow_img_back = torch.from_numpy(np.transpose(flow_img_back, (2,0,1))).float()
                 flow_imgs_fwd.append(flow_img_back) 
                 flow_imgs_back.append(flow_img_fwd)     
-            
-        target_im = {'color_left': orig_imgs[0:self.seq_len][target_idx], 'color_aug_left': transformed_imgs[0:self.seq_len][target_idx]}
-        source_imgs = {'color_left': [orig_imgs[0:self.seq_len][i] for i in source_idx], 'color_aug_left': [transformed_imgs[0:self.seq_len][i] for i in source_idx] }
+        
+        # Return all images and pair information
+        all_imgs = {'color_left': orig_imgs[0:self.seq_len], 'color_aug_left': transformed_imgs[0:self.seq_len]}
+        pair_info = {
+            'pair_indices': pair_indices,
+            'lie_alg': {'color': orig_lie_alg, 'color_aug': transformed_lie_alg}
+        }
         intrinsics = {'color_left': orig_intrinsics[0:self.seq_len], 'color_aug_left': transformed_intrinsics[0:self.seq_len]}
-        lie_alg = {'color': orig_lie_alg[0:self.seq_len], 'color_aug': transformed_lie_alg[0:self.seq_len]}     
 
-        return target_im, source_imgs, lie_alg, intrinsics, (flow_imgs_fwd, flow_imgs_back)
+        return all_imgs, pair_info, intrinsics, (flow_imgs_fwd, flow_imgs_back)
+
+
+def process_multi_pair_sample_batch(data, config):
+    """Process batch data for multi-pair pose prediction"""
+    device = config['device']
+    all_imgs, pair_info, intrinsics, flow_imgs = data
+    
+    # Extract data
+    all_imgs_aug = all_imgs['color_aug_left'].to(device)  # [B, seq_len, C, H, W]
+    all_imgs = all_imgs['color_left'].to(device)  # [B, seq_len, C, H, W]
+    
+    pair_indices = pair_info['pair_indices']  # List of (src_idx, tgt_idx) tuples
+    lie_alg_aug = pair_info['lie_alg']['color_aug']
+    lie_alg = pair_info['lie_alg']['color']
+    
+    # Process each pair
+    pair_imgs_list = []  # List of [src_img, tgt_img] pairs
+    pair_imgs_aug_list = []
+    gt_lie_alg_list = []
+    vo_lie_alg_list = []
+    gt_lie_alg_aug_list = []
+    vo_lie_alg_aug_list = []
+    
+    for i, (src_idx, tgt_idx) in enumerate(pair_indices):
+        # Create image pairs
+        src_img = all_imgs[:, src_idx]  # [B, C, H, W]
+        tgt_img = all_imgs[:, tgt_idx]  # [B, C, H, W]
+        pair_imgs_list.append([src_img, tgt_img])
+        
+        src_img_aug = all_imgs_aug[:, src_idx]  # [B, C, H, W]
+        tgt_img_aug = all_imgs_aug[:, tgt_idx]  # [B, C, H, W]
+        pair_imgs_aug_list.append([src_img_aug, tgt_img_aug])
+        
+        # Ground truth poses
+        gt_lie_alg_list.append(lie_alg[i][0].type(torch.FloatTensor).to(device))
+        vo_lie_alg_list.append(lie_alg[i][1].type(torch.FloatTensor).to(device))
+        gt_lie_alg_aug_list.append(lie_alg_aug[i][0].type(torch.FloatTensor).to(device))
+        vo_lie_alg_aug_list.append(lie_alg_aug[i][1].type(torch.FloatTensor).to(device))
+    
+    # Process flow images if needed
+    if config['flow_type'] == 'classical':
+        flow_imgs_fwd, flow_imgs_back = flow_imgs
+        flow_imgs_fwd_list, flow_imgs_back_list = [], []
+        for i in range(0, len(flow_imgs_fwd)):
+            flow_imgs_fwd_list.append(flow_imgs_fwd[i].to(device))
+            flow_imgs_back_list.append(flow_imgs_back[i].to(device))
+        flow_imgs = [flow_imgs_fwd_list, flow_imgs_back_list]
+    else:
+        flow_imgs = [[None for i in range(0, len(pair_indices))] for i in range(0, 2)]
+    
+    # Intrinsics (same for all images in sequence)
+    intrinsics_aug = intrinsics['color_aug_left'].type(torch.FloatTensor).to(device)[:, 0, :, :]
+    intrinsics = intrinsics['color_left'].type(torch.FloatTensor).to(device)[:, 0, :, :]
+    
+    return (pair_imgs_list, pair_imgs_aug_list, gt_lie_alg_list, vo_lie_alg_list, 
+            gt_lie_alg_aug_list, vo_lie_alg_aug_list, flow_imgs, intrinsics, intrinsics_aug, pair_indices)
 
 
     def load_image(self, img_file):
