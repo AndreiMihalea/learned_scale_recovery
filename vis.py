@@ -10,7 +10,7 @@ def canvas_to_array(fig):
     canvas = fig.canvas
     canvas.draw()
     width, height = fig.get_size_inches() * fig.get_dpi()
-    image_np = np.fromstring(canvas.tostring_rgb(), dtype='uint8').reshape(height.astype(np.uint32), width.astype(np.uint32), 3)
+    image_np = np.fromstring(canvas.tostring_argb(), dtype='uint8').reshape(height.astype(np.uint32), width.astype(np.uint32), 4)
     #PIL expects CXHXW
     return np.rollaxis(image_np, 2)
 
@@ -19,7 +19,7 @@ def plot_disp(disp, save_file = None):
         h, w = disp.shape
     else:
         h, w, _ = disp.shape
-    fig = plt.figure(frameon=False, figsize=[w / 100, h / 100])
+    fig = plt.figure(frameon=False, figsize=[w / 200, h / 200])
     ax = plt.Axes(fig, [0., 0., 1., 1.])
     ax.set_axis_off()
     fig.add_axes(ax)

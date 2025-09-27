@@ -38,5 +38,3 @@ def euler2mat(angle):
 
     rotMat = xmat.bmm(ymat).bmm(zmat)
     return rotMat
-
-

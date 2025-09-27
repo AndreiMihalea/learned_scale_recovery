@@ -3,6 +3,7 @@
 **.pth
 **.pdf
 **.npz
+**.csv
 !supplementary_material.pdf
 **.jpg
 **.png

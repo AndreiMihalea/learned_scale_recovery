@@ -2,7 +2,7 @@ import torch
 from utils.learning_helpers import *
 import numpy as np
 from liegroups import SE3
-from models.stn import *
+from learned_scale_recovery.models.stn import *
 from pyslam.metrics import TrajectoryMetrics
 import csv
 from train_mono import solve_pose

@@ -303,7 +303,7 @@ class ScaleRecovery(nn.Module):
 
         return normals
 
-    def get_ground_mask(self, cam_points, normal_map, threshold=2):
+    def get_ground_mask(self, cam_points, normal_map, threshold=5.):
         b, _, h, w = normal_map.size()
         cos = nn.CosineSimilarity(dim=1, eps=1e-6)
 
@@ -319,7 +319,7 @@ class ScaleRecovery(nn.Module):
 
         return ground_mask
 
-    def forward(self, depth, K, real_cam_height, imshow=False):
+    def forward(self, depth, K, real_cam_height, imshow=False, epoch=0):
         _, _, height, width = depth.shape
 
         real_cam_height /= 30
@@ -327,11 +327,11 @@ class ScaleRecovery(nn.Module):
         inv_K = torch.inverse(K)
         cam_points = self.backproject_depth(depth, inv_K)
         surface_normal = self.get_surface_normal(cam_points)
-        ground_mask = self.get_ground_mask(cam_points, surface_normal)
+        ground_mask = self.get_ground_mask(cam_points, surface_normal, threshold=(15 - epoch * 0.5))
 
         if self.scaling_method == 'm3':
             zero_mask = torch.zeros_like(ground_mask)
-            zero_mask[:, :,  height - 10:height, width // 2 - 50:width // 2 + 50] = 1
+            zero_mask[:, :,  height - (100 - epoch * 3):height, width // 2 - (100 - epoch * 3):width // 2 + (100 - epoch * 3)] = 1
             ground_mask = ground_mask * zero_mask
 
         if imshow:
@@ -342,9 +342,9 @@ class ScaleRecovery(nn.Module):
             ground_mask_np = np.repeat(ground_mask_np, 3, axis=0).transpose((1, 2, 0))
 
             img_res = np.concatenate([depth_np, surface_normal_np, ground_mask_np], axis=1)
-            
+
             cv2.imshow('img', img_res)
-            cv2.waitKey(0)
+            cv2.waitKey(1)
 
         cam_heights = (cam_points[:,:-1,:,:] * surface_normal).sum(1).abs().unsqueeze(1)
 

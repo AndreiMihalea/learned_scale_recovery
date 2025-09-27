@@ -3,13 +3,12 @@ import torch.nn as nn
 import numpy as np
 import glob
 
-from models.dnet_layers import ScaleRecovery
+from learned_scale_recovery.models.dnet_layers import ScaleRecovery
 from utils.inverse_warp_utils import get_scale_factor
 from utils.learning_helpers import disp_to_depth, save_obj
 from utils.geometry_helpers import euler2mat
-from models.stn import *
-from models.plane_net import scale_recovery
-
+from learned_scale_recovery.models.stn import *
+from learned_scale_recovery.models.plane_net import scale_recovery
 
 
 class SSIM_Loss(nn.Module):
@@ -163,8 +162,9 @@ class Compute_Loss(nn.modules.Module):
 
             '''Ground Plane Loss (experimental)'''
             with torch.no_grad():
-                scale_factor = self.scale_factor_estimator(d, intrinsics, self.config['camera_height'])  # batch_idx % 300 == 0 instead of False)
-            self.scale_factor_list[epoch].append(scale_factor.mean().item())
+                scale_factor = self.scale_factor_estimator(d, intrinsics, self.config['camera_height'], epoch=epoch)  # batch_idx % 300 == 0 instead of False)
+            scale_factor_non_nan = scale_factor[scale_factor != -1]
+            self.scale_factor_list[epoch].append(scale_factor_non_nan.mean().item())
             if self.config['l_scale_recovery'] and epoch > 0:
                 # scale_factor, plane_loss = self.plane_loss(plane_est, d, intrinsics)
                 # self.scale_factor_list[epoch].append(scale_factor.mean().item())
@@ -220,7 +220,7 @@ class Compute_Loss(nn.modules.Module):
 
         losses['total'] = 0  
         for key, value in losses.items():
-            if key is not 'total':
+            if key != 'total':
                 losses[key] = value/(self.num_scales)  
                 losses['total'] += losses[key]
 

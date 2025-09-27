@@ -76,9 +76,14 @@ for seq in seq_list:
 
     import models.packetnet_depth_and_egomotion as models_packetnet
     import models.depth_and_egomotion as models
+    from models.pair_attention_posenet import PairAttentionPoseNet
     
     depth_model = models.depth_model(config).to(device)
-    pose_model = models_packetnet.pose_model(config).to(device)
+    
+    # Create encoder for PairAttentionPoseNet (using ResNet18 from depth model)
+    from models.depth_and_egomotion import ResnetEncoder
+    pose_encoder = ResnetEncoder(18, True, num_input_images=2, img_channels=3)
+    pose_model = PairAttentionPoseNet(pose_encoder, feature_dim=512, hidden_dim=128, num_layers=2, num_heads=4).to(device)
     pretrained_depth_path = glob.glob('{}/**depth**best-loss-val_seq-**-test_seq-{}**.pth'.format(dir, ''))[0]
     pretrained_pose_path = glob.glob('{}/**pose**best-loss-val_seq-**-test_seq-{}**.pth'.format(dir, ''))[0]
     depth_model.load_state_dict(torch.load(pretrained_depth_path))

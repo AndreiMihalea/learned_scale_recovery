@@ -51,7 +51,6 @@ class KittiLoaderPytorch(torch.utils.data.Dataset):
         return int(self.data['gt_poses'].shape[0])
 
     def __getitem__(self, idx):
-        print(i)
         img_names = self.data['filenames'][idx]
         # This is done to allow reading .mat paths for the dataset that was generated on another machine
         for i in range(len(img_names)):

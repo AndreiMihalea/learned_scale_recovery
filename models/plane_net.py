@@ -1,7 +1,7 @@
 import torch
 import torch.nn.functional as F
 import torch.nn as nn
-from models.depth_and_egomotion import *
+from learned_scale_recovery.models.depth_and_egomotion import *
 
 def scale_recovery(plane_est, depth, intrinsics, h_gt=1.70):
     plane_est = plane_est**3      

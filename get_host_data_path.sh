@@ -13,6 +13,10 @@ elif [[ "$hostname" == "nemodrive0" ]]; then
     host_data_path="/mnt/storage/workspace/"
 elif [[ "$hostname" == "aimas-nvidia" ]]; then
     host_data_path="/raid/"
+elif [[ "$hostname" == "aimas" ]]; then
+    host_data_path="/mnt/storage/workspace/"
+elif [[ "$hostname" == "pop-os" ]]; then
+    host_data_path="/HDD_2TB/storage/KITTI/"
 fi
 
 echo $host_data_path

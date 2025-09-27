@@ -8,8 +8,10 @@ import pickle
 
 import sys
 sys.path.insert(0,'..')
-import models.packetnet_depth_and_egomotion as models_packetnet
-import models.depth_and_egomotion as models
+import learned_scale_recovery.models.packetnet_depth_and_egomotion as models_packetnet
+import learned_scale_recovery.models.depth_and_egomotion as models
+from learned_scale_recovery.models.pair_attention_posenet import PairAttentionPoseNet
+from learned_scale_recovery.models.depth_and_egomotion import ResnetEncoder
 from utils.custom_transforms import *
 
 def timeSince(since):
@@ -115,7 +117,6 @@ def moving_average(a, n) : #n must be odd)
     import torch
     
 def data_and_model_loader(config, pretrained_depth_path, pretrained_pose_path, seq=None, load_depth=True):
-    
     if config['data_format'] == 'odometry':
         from data.kitti_loader_stereo import KittiLoaderPytorch
         # from data.kitti_loader import KittiLoaderPytorch
@@ -125,15 +126,17 @@ def data_and_model_loader(config, pretrained_depth_path, pretrained_pose_path, s
         seq = config['test_seq']
     else:
         seq = [seq]
-    device = torch.device("cuda") if torch.cuda.is_available() else torch.device("cpu")
-    test_dset = KittiLoaderPytorch(config, [seq, seq, seq], mode='eigen', transform_img=get_data_transforms(config)['test'])
+    device = torch.device("cpu")
+    test_dset = KittiLoaderPytorch(config, [seq, seq, seq], mode='test', transform_img=get_data_transforms(config)['test'])
     test_dset_loaders = torch.utils.data.DataLoader(test_dset, batch_size=config['minibatch'], shuffle=False, num_workers=6)
     eval_dsets = {'test': test_dset_loaders}
     
     if load_depth:
         depth_model = models.depth_model(config).to(device)
-    pose_model = models_packetnet.pose_model(config).to(device)
-    # pose_model = models.pose_model(config).to(device)
+    
+    # Create encoder for PairAttentionPoseNet (using ResNet18 from depth model)
+    pose_encoder = ResnetEncoder(18, True, num_input_images=2, img_channels=3)
+    pose_model = PairAttentionPoseNet(pose_encoder, feature_dim=512, hidden_dim=128, num_layers=2, num_heads=4).to(device)
     
     if pretrained_depth_path is not None and load_depth==True:
         depth_model.load_state_dict(torch.load(pretrained_depth_path))

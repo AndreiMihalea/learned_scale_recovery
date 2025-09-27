@@ -1,11 +1,13 @@
 import torch
 import sys
 sys.path.insert(0,'..')
-from train_mono import Trainer
+from train_mono import Trainer, MultiPairTrainer
 from validate import test_depth_and_reconstruction, test_trajectory
 
-import models.packetnet_depth_and_egomotion as models_packetnet
-import models.depth_and_egomotion as models_monodepth   
+import learned_scale_recovery.models.packetnet_depth_and_egomotion as models_packetnet
+import learned_scale_recovery.models.depth_and_egomotion as models_monodepth
+from learned_scale_recovery.models.depth_and_egomotion import ResnetEncoder
+from learned_scale_recovery.models.pair_attention_posenet import PairAttentionPoseNet
 from utils.learning_helpers import *
 from utils.custom_transforms import *
 import losses
@@ -31,6 +33,7 @@ parser.add_argument('--stereo_baseline', type=float, default=0.52)
 parser.add_argument('--num_scales', type=int, default=1)
 parser.add_argument('--img_resolution', type=str, default='med') # low (128x445) med (192 x640) or high (256 x 832) 
 parser.add_argument('--img_per_sample', type=int, default=3) #1 target image, and rest are source images - currently fixed at 3
+parser.add_argument('--multi_pair_training', action='store_true', help='Use multi-pair pose prediction (all possible pairs in sequence)')
 
 '''Training Arguments'''
 parser.add_argument('--data_dir', type=str, default='/media/m2-drive/datasets/KITTI-downsized-stereo')
@@ -56,8 +59,8 @@ parser.add_argument('--scaling_method', type=str, default='m1') # can be m1 (sma
 ''' Losses'''
 parser.add_argument('--l_reconstruction', action='store_true', default=True, help='use photometric reconstruction losses (l1, ssim)')
 parser.add_argument('--l_ssim', action='store_true', default=True, help='without ssim, only use L1 error')
-parser.add_argument('--l1_weight', type=float, default=0.05) #0.15
-parser.add_argument('--l_ssim_weight', type=float, default=0.17) #0.85
+parser.add_argument('--l1_weight', type=float, default=0.15) #0.15
+parser.add_argument('--l_ssim_weight', type=float, default=0.85) #0.85
 parser.add_argument('--with_auto_mask', action='store_true', default=True, help='with the the mask for stationary points')
 
 parser.add_argument('--l_pose_consist', action='store_true', default=True, help='ensure forward and backward pose predictions align')
@@ -87,8 +90,8 @@ This is not a required step, but is recommended to guarantee proper initializati
 Otherwise, just load the pretrained oxford robotcar model prior to training on KITTI.
 
 '''
-parser.add_argument('--load_pretrained_pose', action='store_true', default=True, help='Use an existing pose model')
-parser.add_argument('--load_pretrained_depth', action='store_true', default=True, help='Use an existing depth model')
+parser.add_argument('--load_pretrained_pose', action='store_true', help='Use an existing pose model')
+parser.add_argument('--load_pretrained_depth', action='store_true', help='Use an existing depth model')
 parser.add_argument('--pretrained_dir', type=str, default='results/oxford_one_iter_unscaled')      
 parser.add_argument('--pretrained_plane_dir', type=str, default='')   #'results/plane-model-med-res-oxford',
         
@@ -159,7 +162,10 @@ def main():
     
     ### load the models
     depth_model = models_monodepth.depth_model(config).to(config['device'])
-    pose_model = models_packetnet.pose_model(config).to(config['device'])
+    
+    # Create encoder for PairAttentionPoseNet (using ResNet18 from depth model)
+    pose_encoder = ResnetEncoder(18, True, num_input_images=2, img_channels=3)
+    pose_model = PairAttentionPoseNet(pose_encoder, feature_dim=512, hidden_dim=128, num_layers=2, num_heads=4).to(config['device'])
     
     if pretrained_depth_path is not None and config['load_pretrained_depth']==True:
         depth_model.load_state_dict(torch.load(pretrained_depth_path))
@@ -168,7 +174,7 @@ def main():
     models = [depth_model, pose_model]
         ## Load the pretrained plane estimator if using the plane loss
     if config['l_scale_recovery']:
-        from models.plane_net import PlaneModel
+        from learned_scale_recovery.models.plane_net import PlaneModel
         plane_model = PlaneModel(config).to(config['device'])
         pretrained_plane_path = glob.glob('{}/**plane**.pth'.format(config['pretrained_plane_dir']))[0]
         plane_model.load_state_dict(torch.load(pretrained_plane_path))
@@ -188,7 +194,12 @@ def main():
                 {'params': pose_model.parameters(), 'lr': 2*config['lr']}]
     loss = losses.Compute_Loss(config, plane_model=plane_model)
     optimizer = torch.optim.Adam(params, lr=config['lr'], weight_decay = config['wd']) #, amsgrad=True)
-    trainer = Trainer(config, models, loss, optimizer)
+    
+    # Choose trainer based on multi_pair_training flag
+    if config['multi_pair_training']:
+        trainer = MultiPairTrainer(config, models, loss, optimizer)
+    else:
+        trainer = Trainer(config, models, loss, optimizer)
     cudnn.benchmark = True
 
     best_val_loss = {}

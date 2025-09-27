@@ -26,16 +26,17 @@ class TrajectoryVisualizer:
 
     def _parse_kwargs(self, kwargs):
         plot_params = {}
-        plot_params['gt_linewidth'] = kwargs.get('gt_linewidth', 2.)
-        plot_params['est_linewidth'] = kwargs.get('est_linewidth', 1.)
-        plot_params['grid_linewidth'] = kwargs.get('grid_linewidth', 0.2)
+        plot_params['gt_linewidth'] = kwargs.get('gt_linewidth', 7)
+        plot_params['est_linewidth'] = kwargs.get('est_linewidth', 3.5)
+        plot_params['grid_linewidth'] = kwargs.get('grid_linewidth', 0.3)
         plot_params['use_endpoint_markers'] = kwargs.get(
             'use_endpoint_markers', False)
-        plot_params['fontsize'] = kwargs.get('fontsize', 14)
-        plot_params['legend_fontsize'] = kwargs.get('legend_fontsize', plot_params['fontsize']-2)
+        plot_params['fontsize'] = kwargs.get('fontsize', 44)
+        plot_params['legend_fontsize'] = kwargs.get('legend_fontsize', plot_params['fontsize']-4)
         plot_params['err_xlabel'] = kwargs.get('err_xlabel', 'Timestep')
+        plot_params['tick_fontsize'] = kwargs.get('tick_fontsize', plot_params['fontsize']-8)
 #        plot_params['line_colours'] = kwargs.get('line_colours', ['tab:blue', 'tab:orange', 'tab:green', 'tab:red', 'tab:purple', 'tab:brown'])
-        plot_params['line_colours'] = kwargs.get('line_colours', ['tab:orange', 'tab:green', 'tab:red', 'tab:purple', 'tab:brown'])
+        plot_params['line_colours'] = kwargs.get('line_colours', ['#003a7d', '#d83034', '#008dff', '#4ecb8d', '#ff9d3a', '#ff73b6'])
         for key in plot_params.keys():
             try:
                 del kwargs[key]
@@ -65,7 +66,10 @@ class TrajectoryVisualizer:
         # Grab plot parameters, pass the rest to subplots
         plot_params = self._parse_kwargs(kwargs)
         # Use a sane default figsize if the user doesn't specify one
-        figsize = kwargs.get('figsize', (4, 3))
+        if '09_' in outfile:
+            figsize = kwargs.get('figsize', (18, 18)) # for seq 9
+        else:
+            figsize = kwargs.get('figsize', (18, 9)) # for seq 10
         kwargs.update({'figsize': figsize})
 
         fig, ax = plt.subplots(**kwargs)
@@ -112,6 +116,7 @@ class TrajectoryVisualizer:
         ax.set_xlabel('Easting (m)', fontsize=plot_params['fontsize'])
         ax.set_ylabel('Northing (m)', fontsize=plot_params['fontsize'])
         ax.legend(fancybox=True, framealpha=0.5, loc=2, fontsize=plot_params['legend_fontsize'])
+        ax.tick_params(axis='both', labelsize=plot_params['tick_fontsize'])
         plt.show()
         if outfile is not None:
             print('Saving to {}'.format(outfile))

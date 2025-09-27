@@ -1,2 +1,5 @@
 Method,Epoch
-,Epoch_1,Epoch_15,Epoch_30,Epoch_44,Mean
+,Epoch_1,Mean
+m1,0.0726,0.0726
+m2,0.1219,0.1219
+m3,0.2664,0.2664

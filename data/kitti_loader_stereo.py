@@ -107,10 +107,12 @@ class KittiLoaderPytorch(torch.utils.data.Dataset):
             seq_name = seq_names
             seq = test_seq
 
-        for s,i in zip(seq,range(0,len(seq))):
-            print(s)
-            print(os.path.join(basedir, seq_name[s],'{}_data_{}.mat'.format(config['estimator_type'], config['estimator'])))
-            data = sio.loadmat(os.path.join(basedir, seq_name[s],'{}_data_{}.mat'.format(config['estimator_type'], config['estimator'])))
+        for s,i in zip(seq, range(0, len(seq))):
+            data = sio.loadmat(os.path.join(basedir,
+                                            seq_name[s],'{}_data_{}.mat'.format(config['estimator_type'],
+                                                                                config['estimator'])).
+                               replace('/media/datasets/KITTI-odometry-downsized-stereo',
+                                       host_data_path + '/kitti_odometry_downsized/'))
 
             # This is done to allow reading .mat paths for the dataset that was generated on another machine
             cam_02_data = np.copy(data['cam_02'].reshape((-1,1))).astype('object')
@@ -179,7 +181,7 @@ class KittiLoaderPytorch(torch.utils.data.Dataset):
 
         target_idx = int(len(imgs_left)/2)   
         source_idx = list(range(0,self.seq_len))
-        source_idx.pop(target_idx)             
+        source_idx.pop(target_idx)
         
         lie_alg = []
         transformed_lie_alg = []
@@ -214,7 +216,7 @@ class KittiLoaderPytorch(torch.utils.data.Dataset):
         target_im = {'color_left': orig_imgs[0:self.seq_len][target_idx], 'color_aug_left': transformed_imgs[0:self.seq_len][target_idx]}
         source_imgs = {'color_left': [orig_imgs[0:self.seq_len][i] for i in source_idx], 'color_aug_left': [transformed_imgs[0:self.seq_len][i] for i in source_idx] }
         intrinsics = {'color_left': orig_intrinsics[0:self.seq_len], 'color_aug_left': transformed_intrinsics[0:self.seq_len]}
-        lie_alg = {'color': orig_lie_alg[0:self.seq_len], 'color_aug': transformed_lie_alg[0:self.seq_len]}        
+        lie_alg = {'color': orig_lie_alg[0:self.seq_len], 'color_aug': transformed_lie_alg[0:self.seq_len]}     
 
         return target_im, source_imgs, lie_alg, intrinsics, (flow_imgs_fwd, flow_imgs_back)
 

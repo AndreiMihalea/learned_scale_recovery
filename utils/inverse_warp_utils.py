@@ -34,7 +34,7 @@ def pixel2cam(depth, intrinsics_inv):
     return cam_coords * depth.unsqueeze(1)
 
 
-def get_scale_factor(depth: torch.tensor, intrinsic, cam_height):
+def get_scale_factor(depth: torch.tensor, intrinsic, cam_height, epoch=0):
     global pixel_coords
     """
     @param disp: depth map, [B, 1, H, W]

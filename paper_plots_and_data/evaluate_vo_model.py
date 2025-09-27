@@ -1,6 +1,7 @@
 import numpy as np
 import torch
 import matplotlib
+from tqdm import tqdm
 
 from utils.inverse_warp_utils import get_scale_factor
 
@@ -12,7 +13,7 @@ import validate
 from train_mono import solve_pose
 from data.kitti_loader import process_sample_batch, process_sample
 from plane_fitting import img_to_3d_torch, fit_plane_torch
-from models.dnet_layers import ScaleRecovery
+from models.dnet_layers import ScaleRecovery, transformation_from_parameters
 from utils.learning_helpers import save_obj, load_obj, disp_to_depth, data_and_model_loader
 from utils.custom_transforms import *
 from vis import *
@@ -20,18 +21,19 @@ import os
 from validate import compute_trajectory as tt
 import glob
 
-path_to_ws = '/home/nemodrive/workspace/andreim/learned_scale_recovery/' ##update this
-path_to_dset_downsized = '/mnt/datadisk/andreim/kitti/kitti_odometry_downsized/'
+path_to_ws = '/home/andrei/workspace/nemodrive/learned_scale_recovery/' ##update this
+path_to_dset_downsized = '/HDD_2TB/storage/KITTI/kitti_odometry_downsized/'
 
 load_from_mat = False #Make True to load paper results rather than recomputing
 plane_rescaling = False
 dnet_rescaling = False
 ransac_rescaling = False
-m1_rescaling = True
+my_rescaling = True
+my_scaling_methods = {}
 # seq_list = ['00_02', '02_02', '06_02', '07_02', '08_02', '05_02', '09_02', '10_02']
 seq_list =['09_02', '10_02']
 
-dir = path_to_ws + 'results/kitti_odom_prefull_m1'
+dir = path_to_ws + 'results/final_models/vo-kitti-scaled-202102182020'
 plane_dir = 'results/plane-model-eigen-202101201842'
 results_dir = dir + '/results/scale/'
 os.makedirs(results_dir, exist_ok=True)
@@ -69,9 +71,14 @@ for seq in seq_list:
     if load_from_mat == False:
         import models.packetnet_depth_and_egomotion as models_packetnet
         import models.depth_and_egomotion as models
+        from models.pair_attention_posenet import PairAttentionPoseNet
         
         depth_model = models.depth_model(config).to(device)
-        pose_model = models_packetnet.pose_model(config).to(device)
+        
+        # Create encoder for PairAttentionPoseNet (using ResNet18 from depth model)
+        from models.depth_and_egomotion import ResnetEncoder
+        pose_encoder = ResnetEncoder(18, True, num_input_images=2, img_channels=3)
+        pose_model = PairAttentionPoseNet(pose_encoder, feature_dim=512, hidden_dim=128, num_layers=2, num_heads=4).to(device)
         pretrained_depth_path = glob.glob('{}/**depth**best-loss-val_seq-**-test_seq-{}**.pth'.format(dir, ''))[0]
         pretrained_pose_path = glob.glob('{}/**pose**best-loss-val_seq-**-test_seq-{}**.pth'.format(dir, ''))[0]
         depth_model.load_state_dict(torch.load(pretrained_depth_path))
@@ -85,15 +92,19 @@ for seq in seq_list:
         from losses import Plane_Height_loss
         plane_loss = Plane_Height_loss(config)
         plane_model = PlaneModel(config).to(config['device'])
-        pretrained_plane_path = glob.glob('../{}/**plane**.pth'.format(plane_dir))[0]
+        pretrained_plane_path = glob.glob('{}/**plane**.pth'.format(plane_dir))[0]
         plane_model.load_state_dict(torch.load(pretrained_plane_path))
         plane_model.train(False).eval()    
         
     if dnet_rescaling == True:
         dgc = ScaleRecovery(config['minibatch'], 192, 640, config['scaling_method']).to(device)
 
-    if m1_rescaling == True:
-        m1_method = get_scale_factor
+    if my_rescaling == True:
+        my_scaling_methods = {
+            'm1': get_scale_factor,
+            'm2': ScaleRecovery(1, 192, 640, 'm2').to(device),
+            'm3': ScaleRecovery(1, 192, 640, 'm3').to(device)
+        }
     
     os.makedirs('scale_results/plane_imgs', exist_ok=True)
     os.makedirs('scale_results/plane_imgs/{}'.format(config['test_seq'][0]),exist_ok=True)
@@ -124,10 +135,10 @@ for seq in seq_list:
         plane_pixel_weights = []
         learned_scale_factor_list = []
         dnet_scale_factor_list = []
-        m1_scale_factor_list = []
+        my_scale_factor_list = {'m1': [], 'm2': [], 'm3': []}
         
         with torch.no_grad():
-            for k, data in enumerate(test_dset_loaders):
+            for k, data in enumerate(tqdm(test_dset_loaders)):
                 target_img, source_img_list, gt_lie_alg_list, vo_lie_alg_list, flow_imgs, intrinsics, target_img_aug, \
                     source_img_aug_list, gt_lie_alg_aug_list, vo_lie_alg_aug_list, intrinsics_aug = process_sample_batch(data, config)
                 pose_results = {'source1': {}, 'source2': {} }
@@ -159,9 +170,11 @@ for seq in seq_list:
                      dnet_scale_factor = dgc(depth, intrinsics, cam_height)
                      dnet_scale_factor_list.append(dnet_scale_factor.cpu().numpy())
 
-                if m1_rescaling:
-                    m1_scale_factor = get_scale_factor(depths[0], intrinsics, cam_height)
-                    m1_scale_factor_list.append(m1_scale_factor.cpu().numpy())
+                if my_rescaling:
+                    for method in my_scaling_methods:
+                        my_method = my_scaling_methods[method]
+                        my_scale_factor = my_method(depths[0], intrinsics, cam_height)
+                        my_scale_factor_list[method].append(my_scale_factor.cpu().numpy())
 
                 fwd_pose_list1.append(fwd_pose_vec1.cpu().detach().numpy())
                 inv_pose_list1.append(inv_pose_vec1.cpu().detach().numpy())
@@ -183,8 +196,9 @@ for seq in seq_list:
                 learned_scale_factor_list = np.concatenate(learned_scale_factor_list).reshape((-1,1))
             if dnet_rescaling:
                 dnet_scale_factor_list = np.concatenate(dnet_scale_factor_list).reshape((-1,1))
-            if m1_rescaling:
-                m1_scale_factor_list = np.concatenate(m1_scale_factor_list).reshape((-1,1))
+            if my_rescaling:
+                for method in my_scale_factor_list:
+                    my_scale_factor_list[method] = np.concatenate(my_scale_factor_list[method]).reshape((-1,1))
 
         i=0
         if ransac_rescaling:
@@ -233,7 +247,7 @@ for seq in seq_list:
                 'dist_to_plane': dist_to_plane, 
                 'learned_scale_factor': learned_scale_factor_list,    
                 'dnet_scale_factor': dnet_scale_factor_list,
-                'm1_scale_factor': m1_scale_factor_list,
+                **{method: my_scale_factor_list[method] for method in my_scale_factor_list}
         }
         save_obj(data, '{}/{}_plane_fit'.format(results_dir, config['test_seq'][0]))
 
@@ -245,6 +259,17 @@ for seq in seq_list:
     gt_pose_vec = data['gt_pose_vec']
     unscaled_pose_vec = data['fwd_pose_vec1']
     scaled_pose_vec_ransac = np.array(unscaled_pose_vec)
+
+    global_poses = [np.eye(4)]
+
+    poses = transformation_from_parameters(torch.tensor(unscaled_pose_vec[:, 3:]).unsqueeze(1),
+                                           torch.tensor(unscaled_pose_vec[:, :3]).unsqueeze(1)).numpy()
+    for pose in poses:
+        global_poses.append(global_poses[-1] @ np.linalg.inv(pose))
+
+    global_poses = np.array(global_poses)[:, :3, :].reshape((-1, 12))
+    os.makedirs(os.path.join(results_dir, 'unscaled'), exist_ok=True)
+    np.savetxt('{}/{}.txt'.format(os.path.join(results_dir, 'unscaled'), seq[:-3]), global_poses)
     
     if ransac_rescaling:
         d = [np.median(np.abs(i)) for i in dist_to_plane]
@@ -267,11 +292,24 @@ for seq in seq_list:
         print('ground plane std. dev. scale factor (dnet): {}'.format(np.std(data['dnet_scale_factor'])))
         scaled_pose_vec_dnet = np.array(unscaled_pose_vec)
         scaled_pose_vec_dnet[:,0:3] = scaled_pose_vec_dnet[:,0:3]*np.repeat(data['dnet_scale_factor'],3,axis=1)
-    if m1_rescaling:
-        print('ground plane scale factor (m1): {}'.format(np.mean(data['m1_scale_factor'])))
-        print('ground plane std. dev. scale factor (m1): {}'.format(np.std(data['m1_scale_factor'])))
-        scaled_pose_vec_m1 = np.array(unscaled_pose_vec)
-        scaled_pose_vec_m1[:,0:3] = scaled_pose_vec_m1[:,0:3]*np.repeat(data['m1_scale_factor'],3,axis=1)
+    if my_rescaling:
+        scaled_pose_vec_my = {}
+        for method in my_scaling_methods:
+            print(f'ground plane scale factor ({method}): {np.mean(data[method])}')
+            print(f'ground plane std. dev. scale factor ({method}): {np.std(data[method])}')
+            scaled_pose_vec_my[method] = np.array(unscaled_pose_vec)
+            scaled_pose_vec_my[method][:,0:3] = scaled_pose_vec_my[method][:,0:3]*np.repeat(data[method],3,axis=1)
+
+            global_poses = [np.eye(4)]
+
+            poses = transformation_from_parameters(torch.tensor(scaled_pose_vec_my[method][:, 3:]).unsqueeze(1),
+                                                   torch.tensor(scaled_pose_vec_my[method][:, :3]).unsqueeze(1)).numpy()
+            for pose in poses:
+                global_poses.append(global_poses[-1] @ np.linalg.inv(pose))
+
+            global_poses = np.array(global_poses)[:, :3, :].reshape((-1, 12))
+            os.makedirs(os.path.join(results_dir, method), exist_ok=True)
+            np.savetxt('{}/{}.txt'.format(os.path.join(results_dir, method), seq[:-3]), global_poses)
 
     ## Scale Factor
     gt_norm = np.linalg.norm(gt_pose_vec[:,0:3],axis=1)
@@ -289,7 +327,7 @@ for seq in seq_list:
        
     ## Compute Trajectories
     gt_traj = test_dset_loaders.dataset.raw_gt_trials[0]
-    orig_est, gt, errors, cum_dist = tt(unscaled_pose_vec,gt_traj,method='unscaled')
+    orig_est, gt, errors, cum_dist = tt(scaled_pose_vec_my['m2'],gt_traj,method='unscaled')
     logger.log(seq, 'unscaled', errors[0], errors[1], errors[2], errors[3])
     if ransac_rescaling:
         scaled_est, gt, errors, cum_dist = tt(scaled_pose_vec_ransac,gt_traj, method='scaled (ransac)')
@@ -300,9 +338,10 @@ for seq in seq_list:
     if dnet_rescaling:
         _, _, errors, _ = tt(scaled_pose_vec_dnet,gt_traj, method='scaled (dnet)')
         logger.log(seq, 'dnet scaled', errors[0], errors[1], errors[2], errors[3])
-    if m1_rescaling:
-        _, _, errors, _ = tt(scaled_pose_vec_m1,gt_traj, method='scaled (m1)')
-        logger.log(seq, 'm1 scaled', errors[0], errors[1], errors[2], errors[3])
+    if my_rescaling:
+        for method in my_scaling_methods:
+            _, _, errors, _ = tt(scaled_pose_vec_my[method],gt_traj, method=f'scaled ({method})')
+            logger.log(seq, 'my scaled', errors[0], errors[1], errors[2], errors[3])
     logger.log('', '', '', '', '', '')
     
     
